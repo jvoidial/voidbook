@@ -8,7 +8,7 @@ import PostCard from '../components/PostCard';
 import { theme as T } from '../theme';
 
 export default function FeedScreen() {
-  const { state, addPost } = useApp();
+  const { state, addPost, likePost, sharePost } = useApp();
   const { user } = useAuth();
   const [text, setText] = useState('');
   const usersById = Object.fromEntries(state.users.map(u => [u.id, u]));
@@ -66,7 +66,7 @@ export default function FeedScreen() {
             </View>
           </>
         }
-        renderItem={({ item }) => <PostCard post={item} user={usersById[item.userId]} />}
+        renderItem={({ item }) => <PostCard post={item} user={usersById[item.userId]} onLike={() => likePost(item.id)} onShare={() => sharePost(item.id)} />}
       />
 
       <TouchableOpacity style={S.fab} onPress={() => {}}>

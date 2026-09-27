@@ -97,27 +97,3 @@ jobs:
       - name: Build APK via Python3
         run: python3 python-src/voidbook/build.py
 
-      - name: Commit APK + Sources
-        run: |
-          git config user.name  "VOIDBOOK Bot"
-          git config user.email "voidbook-bot@users.noreply.github.com"
-          git add -A
-          git add -f releases/*.apk
-          if git diff --staged --quiet; then
-            echo "No changes."
-          else
-            git commit -m "🤖 VOIDBOOK auto-build v1.0.${{ github.run_number }} [skip ci]"
-            git push origin HEAD:main
-          fi
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: voidbook-apk-${{ github.run_number }}
-          path: releases/*.apk
-
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: VOIDBOOK v1.0.${{ github.run_number }}
-          body: "Automated build #${{ github.run_number }}"
-          files: releases/*.apk

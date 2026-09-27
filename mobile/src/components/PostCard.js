@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import { theme as T } from '../theme';
 
-export default function PostCard({ post, user }) {
+export default function PostCard({ post, user, onLike, onShare }) {
   const { user: me } = useAuth();
   const { deletePost, likePost, sharePost, addComment, state } = useApp();
   const [showComments, setShowComments] = useState(false);
@@ -13,7 +13,7 @@ export default function PostCard({ post, user }) {
   const mins = Math.floor((Date.now() - post.ts) / 60000);
   const usersById = Object.fromEntries(state.users.map(u => [u.id, u]));
 
-  const renderContent = (c) => c.split(/(\s+)/).map((part, i) =>
+  const renderContent = (c) => (c || '').split(/(\s+)/).map((part, i) =>
     part.startsWith('#') ? <Text key={i} style={{ color: T.accent }}>{part}</Text> : part
   );
 
@@ -48,13 +48,13 @@ export default function PostCard({ post, user }) {
       <View style={S.bar}>
         <TouchableOpacity style={S.b} onPress={() => setShowComments(s => !s)}>
           <Ionicons name="chatbubble-outline" size={17} color={T.muted} />
-          <Text style={S.bt}>{post.comments?.length || 0}</Text>
+          <Text style={S.bt}>{(post.comments||[]).length}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={S.b} onPress={() => sharePost(post.id)}>
+        <TouchableOpacity style={S.b} onPress={() => (onShare ? onShare() : sharePost(post.id))}>
           <Ionicons name="repeat-outline" size={17} color={T.muted} />
           <Text style={S.bt}>{post.shares || 0}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={S.b} onPress={() => likePost(post.id)}>
+        <TouchableOpacity style={S.b} onPress={() => (onLike ? onLike() : likePost(post.id))}>
           <Ionicons name="heart-outline" size={17} color={T.muted} />
           <Text style={S.bt}>{post.likes || 0}</Text>
         </TouchableOpacity>
@@ -65,7 +65,7 @@ export default function PostCard({ post, user }) {
 
       {showComments && (
         <View style={S.commentsBox}>
-          {post.comments?.map(c => {
+          {(post.comments||[]).map(c => {
             const u = usersById[c.userId] || { name: 'You' };
             return (
               <View key={c.id} style={S.commentRow}>
