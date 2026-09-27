@@ -14,11 +14,12 @@ concurrency:
 
 jobs:
   build-apk:
-    name: Build & Push VOIDBOOK APK
+    name: Build & Publish VOIDBOOK APK
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     env:
       NODE_ENV: production
-    timeout-minutes: 90
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,13 +27,17 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
-        with: { node-version: '20' }
+        with:
+          node-version: '20'
 
       - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: '17' }
+        with:
+          distribution: temurin
+          java-version: '17'
 
       - uses: android-actions/setup-android@v3
-        with: { packages: 'platform-tools platforms;android-34 build-tools;34.0.0' }
+        with:
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
 
       - uses: actions/cache@v4
         with:
@@ -44,23 +49,19 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-${{ hashFiles('mobile/android/**/*.gradle*') }}
+          key: gradle-${{ hashFiles('mobile/android/**/*.gradle*', 'mobile/package.json') }}
 
       - name: Install Mobile Dependencies
         working-directory: mobile
         run: npm install --legacy-peer-deps
 
-      - name: Generate VOIDBOOK Icons
-        run: python3 python-src/voidbook/make_icons.py mobile/assets
-
-      - name: Expo Prebuild
+      - name: Expo Prebuild (Generate Native Android)
         working-directory: mobile
         run: npx expo prebuild --platform android --clean
 
       - name: Configure Release Signing
         working-directory: mobile/android/app
         run: |
-          # Append signing config only once
           if ! grep -q "signingConfigs" build.gradle; then
             cat >> build.gradle << 'GRADLE_EOF'
 
@@ -82,8 +83,6 @@ jobs:
           }
           GRADLE_EOF
           fi
-
-          # Regenerate keystore fresh (avoids alias collision)
           rm -f debug.keystore
           keytool -genkeypair -v -storetype PKCS12 \
             -keystore debug.keystore -storepass android \
@@ -91,9 +90,52 @@ jobs:
             -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=VOIDBOOK, OU=VOID, O=VOIDIAL, L=VOID, S=VOID, C=US"
 
+      - name: Write local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > mobile/android/local.properties
+
       - name: Make Gradlew Executable
         run: chmod +x mobile/android/gradlew
 
-      - name: Build APK via Python3
-        run: python3 python-src/voidbook/build.py
+      - name: Build Release APK
+        working-directory: mobile/android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
 
+      - name: Locate APK (debug)
+        run: |
+          echo "=== Searching for every .apk under mobile/android ==="
+          find mobile/android -name "*.apk" -type f -exec ls -lh {} \; || true
+          echo "=== Outputs tree ==="
+          find mobile/android/app/build/outputs -type f 2>/dev/null | head -50 || true
+
+      - name: Copy APK to artifacts directory
+        run: |
+          mkdir -p artifacts
+          APK=$(find mobile/android/app/build/outputs/apk/release -name "*.apk" -type f | head -1)
+          if [ -z "$APK" ]; then
+            echo "::error::No APK produced by gradle — build failed silently"
+            exit 1
+          fi
+          cp "$APK" artifacts/VOIDBOOK-v1.0.${{ github.run_number }}.apk
+          ls -lh artifacts/
+          echo "APK_PATH=$APK" >> $GITHUB_ENV
+
+      - name: Upload VOIDBOOK APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voidbook-apk-${{ github.run_number }}
+          path: artifacts/*.apk
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: VOIDBOOK v1.0.${{ github.run_number }}
+          body: |
+            ## VOIDBOOK Automated Build #${{ github.run_number }}
+            - Commit: `${{ github.sha }}`
+            - Features: auth · feed · messaging · live · marketplace · profile · settings
+          files: artifacts/*.apk
+          generate_release_notes: false
