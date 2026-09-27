@@ -22,10 +22,7 @@ import SettingsScreen from './screens/SettingsScreen';
 const Tab = createBottomTabNavigator();
 const AuthStack = createNativeStackNavigator();
 
-const navTheme = {
-  ...DarkTheme,
-  colors: { ...DarkTheme.colors, background:T.bg, card:T.bg, border:T.border, text:T.text, primary:T.accent }
-};
+const navTheme = { ...DarkTheme, colors: { ...DarkTheme.colors, background:T.bg, card:T.bg, border:T.border, text:T.text, primary:T.accent } };
 
 const ICONS = {
   Home:          ['home-outline', 'home'],
