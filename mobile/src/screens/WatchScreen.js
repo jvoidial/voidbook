@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { theme as T } from '../theme';
 
@@ -13,7 +14,7 @@ export default function WatchScreen() {
       <FlatList data={state.watch} keyExtractor={i => i.id}
         renderItem={({ item }) => (
           <View style={S.card}>
-            <View style={S.thumb}><Text style={S.play}>▶</Text></View>
+            <View style={S.thumb}><Ionicons name="play-circle" size={64} color={T.accent} /></View>
             <Text style={S.nm}>{item.title}</Text>
             <Text style={S.hd}>
               {usersById[item.userId]?.name} · {item.views.toLocaleString()} views

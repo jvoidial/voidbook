@@ -1,13 +1,14 @@
 import React from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { theme as T } from '../theme';
 
 export default function NotificationsScreen() {
   const { state, markNotificationRead } = useApp();
   const usersById = Object.fromEntries(state.users.map(u => [u.id, u]));
-  const icon = { like:'❤️', comment:'💬', friend_request:'👥', share:'📤' };
+  const icon = { like:'heart', comment:'chatbubble', friend_request:'person-add', share:'paper-plane' };
   const label = n => ({
     like: 'liked your post',
     comment: 'commented on your post',
@@ -28,7 +29,7 @@ export default function NotificationsScreen() {
               <View style={{ flex:1 }}>
                 <Text style={S.nm}>{u?.name} <Text style={S.hd}>{label(item)}</Text></Text>
               </View>
-              <Text style={{ fontSize:18 }}>{icon[item.type] || '🔔'}</Text>
+              <Ionicons name={(icon[item.type] || 'notifications')} size={20} color={T.accent} />
             </TouchableOpacity>
           );
         }} />

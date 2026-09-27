@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, FlatList, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import PostCard from '../components/PostCard';
 import { theme as T } from '../theme';
@@ -13,7 +14,12 @@ export default function FeedScreen() {
 
   return (
     <SafeAreaView style={S.c} edges={['top']}>
-      <View style={S.top}><Text style={S.logo}>VOID<Text style={S.accent}>BOOK</Text></Text></View>
+      <View style={S.top}>
+        <Ionicons name="cube" size={22} color={T.accent} />
+        <Text style={S.logo}>VOID<Text style={S.accent}>BOOK</Text></Text>
+        <View style={{ flex: 1 }} />
+        <Ionicons name="search-outline" size={22} color={T.text} />
+      </View>
       <FlatList
         data={state.posts}
         keyExtractor={i => i.id}
@@ -21,6 +27,12 @@ export default function FeedScreen() {
           <>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}
               style={S.stories} contentContainerStyle={{ paddingHorizontal:16 }}>
+              {<View style={S.story}>
+                <View style={[S.storyAv, { borderColor: T.border }]}>
+                  <Ionicons name="add" size={26} color={T.accent} />
+                </View>
+                <Text style={S.storyNm}>Create</Text>
+              </View>}
               {stories.map(s => (
                 <View key={s.id} style={S.story}>
                   <View style={S.storyAv} />
@@ -49,7 +61,7 @@ export default function FeedScreen() {
 
 const S = StyleSheet.create({
   c: { flex:1, backgroundColor:T.bg },
-  top: { padding:16, borderBottomWidth:1, borderBottomColor:T.border, alignItems:'center' },
+  top: { padding:16, borderBottomWidth:1, borderBottomColor:T.border, alignItems:'center', flexDirection:'row', gap:10 },
   logo: { fontSize:22, fontWeight:'800', color:T.text },
   accent: { color:T.accent },
   stories: { borderBottomWidth:1, borderBottomColor:T.border, paddingVertical:12 },

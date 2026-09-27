@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { theme as T } from '../theme';
 
@@ -31,7 +32,7 @@ export default function FriendsScreen() {
                     <Text style={S.acceptT}>Accept</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={S.reject} onPress={() => rejectFriend(r.id)}>
-                    <Text style={S.rejectT}>✕</Text>
+                    <Ionicons name="close" size={18} color={T.text} />
                   </TouchableOpacity>
                 </View>
               ))}

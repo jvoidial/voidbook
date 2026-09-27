@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { theme as T } from '../theme';
 
@@ -12,7 +13,7 @@ export default function GroupsScreen() {
       <FlatList data={state.groups} keyExtractor={i => i.id}
         renderItem={({ item }) => (
           <View style={S.card}>
-            <View style={S.gAv} />
+            <View style={S.gAv}><Ionicons name="people" size={26} color={T.accent} /></View>
             <View style={{ flex:1 }}>
               <Text style={S.nm}>{item.name}</Text>
               <Text style={S.hd}>{item.members.toLocaleString()} members</Text>
@@ -37,7 +38,8 @@ const S = StyleSheet.create({
   card: { flexDirection:'row', alignItems:'center', padding:16,
           borderBottomWidth:1, borderBottomColor:T.border },
   gAv: { width:56, height:56, borderRadius:14, backgroundColor:T.surface,
-         borderWidth:1, borderColor:T.border, marginRight:12 },
+         borderWidth:1, borderColor:T.border, marginRight:12,
+         alignItems:'center', justifyContent:'center' },
   nm: { color:T.text, fontWeight:'bold' },
   hd: { color:T.muted, fontSize:12 },
   desc: { color:T.muted, fontSize:12, marginTop:4 },
