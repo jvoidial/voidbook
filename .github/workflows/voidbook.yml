@@ -55,7 +55,10 @@ jobs:
       - name: Configure Release Signing
         working-directory: mobile/android/app
         run: |
-          cat >> build.gradle << 'GRADLE_EOF'
+          # Append signing config only once
+          if ! grep -q "signingConfigs" build.gradle; then
+            cat >> build.gradle << 'GRADLE_EOF'
+
           android {
               signingConfigs {
                   release {
@@ -73,11 +76,18 @@ jobs:
               }
           }
           GRADLE_EOF
+          fi
+
+          # Regenerate keystore fresh (avoids alias collision)
+          rm -f debug.keystore
           keytool -genkeypair -v -storetype PKCS12 \
             -keystore debug.keystore -storepass android \
             -alias androiddebugkey -keypass android \
             -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=VOIDBOOK, OU=VOID, O=VOIDIAL, L=VOID, S=VOID, C=US"
+
+      - name: Make Gradlew Executable
+        run: chmod +x mobile/android/gradlew
 
       - name: Build APK via Python3
         run: python3 python-src/voidbook/build.py
