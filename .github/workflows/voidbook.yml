@@ -16,6 +16,8 @@ jobs:
   build-apk:
     name: Build & Push VOIDBOOK APK
     runs-on: ubuntu-latest
+    env:
+      NODE_ENV: production
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4

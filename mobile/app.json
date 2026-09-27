@@ -9,7 +9,17 @@
     "android": {
       "package": "com.voidial.voidbook",
       "versionCode": 1,
-      "adaptiveIcon": { "backgroundColor": "#000000" }
-    }
+      "adaptiveIcon": {
+        "backgroundColor": "#000000"
+      }
+    },
+    "splash": {
+      "backgroundColor": "#000000",
+      "resizeMode": "contain"
+    },
+    "icon": "./assets/icon.png",
+    "assetBundlePatterns": [
+      "**/*"
+    ]
   }
 }
