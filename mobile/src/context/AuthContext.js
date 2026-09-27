@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const KEY = 'voidbook.session.v2';
+const KEY = 'voidbook.session.v5';
 const Ctx = createContext(null);
 export const useAuth = () => useContext(Ctx);
 
