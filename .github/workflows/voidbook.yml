@@ -1,0 +1,108 @@
+name: VOIDBOOK Full APK Build & Commit
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: voidbook-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build & Push VOIDBOOK APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+
+      - uses: android-actions/setup-android@v3
+        with: { packages: 'platform-tools platforms;android-34 build-tools;34.0.0' }
+
+      - uses: actions/cache@v4
+        with:
+          path: mobile/node_modules
+          key: npm-${{ hashFiles('mobile/package.json') }}
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('mobile/android/**/*.gradle*') }}
+
+      - name: Install Mobile Dependencies
+        working-directory: mobile
+        run: npm install --legacy-peer-deps
+
+      - name: Expo Prebuild
+        working-directory: mobile
+        run: npx expo prebuild --platform android --clean
+
+      - name: Configure Release Signing
+        working-directory: mobile/android/app
+        run: |
+          cat >> build.gradle << 'GRADLE_EOF'
+          android {
+              signingConfigs {
+                  release {
+                      storeFile file("debug.keystore")
+                      storePassword "android"
+                      keyAlias "androiddebugkey"
+                      keyPassword "android"
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                      minifyEnabled false
+                  }
+              }
+          }
+          GRADLE_EOF
+          keytool -genkeypair -v -storetype PKCS12 \
+            -keystore debug.keystore -storepass android \
+            -alias androiddebugkey -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=VOIDBOOK, OU=VOID, O=VOIDIAL, L=VOID, S=VOID, C=US"
+
+      - name: Build APK via Python3
+        run: python3 python-src/voidbook/build.py
+
+      - name: Commit APK + Sources
+        run: |
+          git config user.name  "VOIDBOOK Bot"
+          git config user.email "voidbook-bot@users.noreply.github.com"
+          git add -A
+          git add -f releases/*.apk
+          if git diff --staged --quiet; then
+            echo "No changes."
+          else
+            git commit -m "🤖 VOIDBOOK auto-build v1.0.${{ github.run_number }} [skip ci]"
+            git push origin HEAD:main
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voidbook-apk-${{ github.run_number }}
+          path: releases/*.apk
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: VOIDBOOK v1.0.${{ github.run_number }}
+          body: "Automated build #${{ github.run_number }}"
+          files: releases/*.apk

@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/build/
+mobile/ios/
+__pycache__/
+*.pyc
+.venv/
+*.keystore
+!mobile/android/app/debug.keystore
+.DS_Store
