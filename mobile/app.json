@@ -22,6 +22,12 @@
     "icon": "./assets/icon.png",
     "assetBundlePatterns": [
       "**/*"
-    ]
+    ],
+    "autolinking": {
+      "exclude": [
+        "expo-camera",
+        "expo-image-picker"
+      ]
+    }
   }
 }

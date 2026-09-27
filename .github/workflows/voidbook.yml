@@ -51,9 +51,24 @@ jobs:
             ~/.gradle/wrapper
           key: gradle-${{ hashFiles('mobile/android/**/*.gradle*', 'mobile/package.json') }}
 
+      - name: Purge node_modules and lockfile
+        working-directory: mobile
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          ls -la | head -20
+          echo "  ✓ node_modules + lockfile purged"
+
       - name: Install Mobile Dependencies
         working-directory: mobile
-        run: npm install --legacy-peer-deps
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Force-remove expo-camera after install
+        working-directory: mobile
+        run: |
+          rm -rf node_modules/expo-camera node_modules/expo-image-picker
+          echo "  ✓ explicitly removed camera dirs after npm install"
+          ls node_modules | grep -c camera || echo "  0 camera modules present"
 
       - name: Expo Prebuild (Generate Native Android)
         working-directory: mobile
