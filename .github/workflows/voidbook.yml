@@ -50,6 +50,9 @@ jobs:
         working-directory: mobile
         run: npm install --legacy-peer-deps
 
+      - name: Generate VOIDBOOK Icons
+        run: python3 python-src/voidbook/make_icons.py mobile/assets
+
       - name: Expo Prebuild
         working-directory: mobile
         run: npx expo prebuild --platform android --clean
