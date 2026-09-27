@@ -10,3 +10,7 @@ __pycache__/
 *.keystore
 !mobile/android/app/debug.keystore
 .DS_Store
+.env
+.env.local
+mobile/.env
+mobile/.env.local
