@@ -8,13 +8,6 @@ import { theme as T } from '../theme';
 
 let Camera = null;
 let useCameraPermissions = null;
-try {
-  const cam = require('expo-camera');
-  Camera = cam.CameraView;
-  useCameraPermissions = cam.useCameraPermissions;
-} catch (e) {
-  // Camera not installed in dev — fall back to simulation
-}
 
 export default function WatchScreen() {
   const { state, goLive, endLive, bumpLiveViewers } = useApp();
