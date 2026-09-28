@@ -1,4 +1,4 @@
-name: VOIDBOOK Full APK Build & Commit
+name: VOIDBOOK Build & Release
 
 on:
   push:
@@ -9,27 +9,24 @@ permissions:
   contents: write
 
 concurrency:
-  group: voidbook-build-${{ github.ref }}
+  group: voidbook-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-apk:
-    name: Build & Publish VOIDBOOK APK
+  build:
+    name: Build VOIDBOOK APK
     runs-on: ubuntu-latest
-    env:
-      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
-      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
-      EXPO_PUBLIC_WORKER_URL: ${{ secrets.EXPO_PUBLIC_WORKER_URL }}
-      NODE_ENV: production
     timeout-minutes: 90
     env:
       NODE_ENV: production
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      EXPO_PUBLIC_WORKER_URL: ${{ secrets.EXPO_PUBLIC_WORKER_URL }}
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
         with:
@@ -44,52 +41,30 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
 
-      - uses: actions/cache@v4
-        with:
-          path: mobile/node_modules
-          key: npm-v2-nocam-${{ github.run_id }}
-
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-v2-nocam-${{ github.run_id }}
-
-      - name: Purge node_modules and lockfile
+      - name: Purge stale caches
         working-directory: mobile
         run: |
           rm -rf node_modules
           rm -f package-lock.json
-          ls -la | head -20
-          echo "  ✓ node_modules + lockfile purged"
 
-      - name: Write .env for build
-        working-directory: mobile
-        run: |
-          cat > .env << EOF
-          EXPO_PUBLIC_SUPABASE_URL=${EXPO_PUBLIC_SUPABASE_URL}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY=${EXPO_PUBLIC_SUPABASE_ANON_KEY}
-          EXPO_PUBLIC_WORKER_URL=${EXPO_PUBLIC_WORKER_URL}
-          EOF
-          echo "  ✓ .env written for CI"
-
-      - name: Install Mobile Dependencies
+      - name: Install deps
         working-directory: mobile
         run: npm install --legacy-peer-deps --no-audit --no-fund
 
-      - name: Force-remove expo-camera after install
+      - name: Write .env for Metro
         working-directory: mobile
         run: |
-          rm -rf node_modules/expo-camera node_modules/expo-image-picker
-          echo "  ✓ explicitly removed camera dirs after npm install"
-          ls node_modules | grep -c camera || echo "  0 camera modules present"
+          printf 'EXPO_PUBLIC_SUPABASE_URL=%s\n' "$EXPO_PUBLIC_SUPABASE_URL" > .env
+          printf 'EXPO_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$EXPO_PUBLIC_SUPABASE_ANON_KEY" >> .env
+          printf 'EXPO_PUBLIC_WORKER_URL=%s\n' "$EXPO_PUBLIC_WORKER_URL" >> .env
+          echo "  .env (redacted):"
+          sed 's/=.*/=<set>/' .env
 
-      - name: Expo Prebuild (Generate Native Android)
+      - name: Expo prebuild
         working-directory: mobile
         run: npx expo prebuild --platform android --clean
 
-      - name: Configure Release Signing
+      - name: Configure release signing
         working-directory: mobile/android/app
         run: |
           if ! grep -q "signingConfigs" build.gradle; then
@@ -120,52 +95,60 @@ jobs:
             -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=VOIDBOOK, OU=VOID, O=VOIDIAL, L=VOID, S=VOID, C=US"
 
+      - name: Metro bundle pre-check
+        working-directory: mobile
+        run: |
+          npx expo export:embed \
+            --entry-file=index.js \
+            --platform=android \
+            --dev=false \
+            --bundle-output=/tmp/precheck.bundle \
+            --assets-dest=/tmp/precheck-assets 2>&1 | tail -40
+
       - name: Write local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > mobile/android/local.properties
 
-      - name: Make Gradlew Executable
+      - name: Wipe Gradle cache
+        run: |
+          rm -rf mobile/android/.gradle
+          rm -rf mobile/android/app/build
+          rm -rf mobile/android/build
+          rm -rf mobile/android/app/.cxx
+
+      - name: Make gradlew executable
         run: chmod +x mobile/android/gradlew
 
-      - name: Build Release APK
+      - name: Build release APK
         working-directory: mobile/android
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Locate APK (debug)
+      - name: Locate APK
+        id: locate
         run: |
-          echo "=== Searching for every .apk under mobile/android ==="
-          find mobile/android -name "*.apk" -type f -exec ls -lh {} \; || true
-          echo "=== Outputs tree ==="
-          find mobile/android/app/build/outputs -type f 2>/dev/null | head -50 || true
-
-      - name: Copy APK to artifacts directory
-        run: |
-          mkdir -p artifacts
           APK=$(find mobile/android/app/build/outputs/apk/release -name "*.apk" -type f | head -1)
           if [ -z "$APK" ]; then
-            echo "::error::No APK produced by gradle — build failed silently"
+            echo "::error::No APK produced"
+            find mobile/android -name "*.apk" -type f -exec ls -lh {} \;
             exit 1
           fi
-          cp "$APK" artifacts/VOIDBOOK-v1.0.${{ github.run_number }}.apk
+          mkdir -p artifacts
+          cp "$APK" "artifacts/VOIDBOOK-v1.0.${{ github.run_number }}.apk"
           ls -lh artifacts/
-          echo "APK_PATH=$APK" >> $GITHUB_ENV
 
-      - name: Upload VOIDBOOK APK Artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: voidbook-apk-${{ github.run_number }}
           path: artifacts/*.apk
           if-no-files-found: error
           retention-days: 90
 
-      - name: Publish GitHub Release
+      - name: Publish release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: VOIDBOOK v1.0.${{ github.run_number }}
           body: |
-            ## VOIDBOOK Automated Build #${{ github.run_number }}
-            - Commit: `${{ github.sha }}`
-            - Features: auth · feed · messaging · live · marketplace · profile · settings
+            Automated build #${{ github.run_number }}
+            Commit: `${{ github.sha }}`
           files: artifacts/*.apk
-          generate_release_notes: false
