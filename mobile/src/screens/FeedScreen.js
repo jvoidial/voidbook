@@ -7,12 +7,15 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import PostCard from '../components/PostCard';
 import { theme as T } from '../theme';
+import { pickImage, pickVideo, uploadMedia } from '../lib/media';
+import { Image } from 'react-native';
 
 export default function FeedScreen() {
   const nav = useNavigation();
   const { state, addPost } = useApp();
   const { user } = useAuth();
   const [text, setText] = useState('');
+  const [media, setMedia] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('For you');
   const usersById = Object.fromEntries(state.users.map(u => [u.id, u]));
@@ -51,11 +54,37 @@ export default function FeedScreen() {
           <View style={S.composer}>
             <View style={S.myAv}><Text style={S.myAvT}>{(user?.name || '?')[0]?.toUpperCase()}</Text></View>
             <TextInput style={S.input} placeholder="What is happening?!" placeholderTextColor={T.muted} multiline value={text} onChangeText={setText} />
-            {text.length > 0 && (
-              <TouchableOpacity style={S.postBtn} onPress={submit}>
-                <Text style={S.postBtnT}>Post</Text>
+            {media && <Image source={{ uri: media.uri }} style={{ width:'100%', height:200, borderRadius:12, marginTop:8 }} />}
+            <View style={{ flexDirection:'row', gap:16, marginTop:10, alignItems:'center' }}>
+              <TouchableOpacity onPress={async () => {
+                try { const a = await pickImage({ allowsEditing: false }); if (a) setMedia({ ...a, kind: 'image' }); }
+                catch (e) { Alert.alert('Error', e.message); }
+              }}>
+                <Ionicons name="image-outline" size={22} color={T.success} />
               </TouchableOpacity>
-            )}
+              <TouchableOpacity onPress={async () => {
+                try { const a = await pickVideo(); if (a) setMedia({ ...a, kind: 'video' }); }
+                catch (e) { Alert.alert('Error', e.message); }
+              }}>
+                <Ionicons name="videocam-outline" size={22} color={T.danger} />
+              </TouchableOpacity>
+              <View style={{ flex:1 }} />
+              {(text.length > 0 || media) && (
+                <TouchableOpacity style={S.postBtn} onPress={async () => {
+                  try {
+                    let url = null, type = null;
+                    if (media) {
+                      url = await uploadMedia(media, 'post', user?.id);
+                      type = media.kind;
+                    }
+                    await addPost(text, url, type);
+                    setText(''); setMedia(null);
+                  } catch (e) { Alert.alert('Post failed', e.message); }
+                }}>
+                  <Text style={S.postBtnT}>Post</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         }
         renderItem={({ item }) => <PostCard post={item} user={usersById[item.userId]} />}

@@ -50,7 +50,17 @@ export function AuthProvider({ children }) {
         setUser(null);
         setSession(null);
       },
-      updateProfile: async (patch) => {
+      uploadAvatar: async (publicUrl) => {
+      if (!user) return;
+      const { error } = await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id);
+      if (error) throw error;
+    },
+    uploadCover: async (publicUrl) => {
+      if (!user) return;
+      const { error } = await supabase.from('profiles').update({ cover_url: publicUrl }).eq('id', user.id);
+      if (error) throw error;
+    },
+    updateProfile: async (patch) => {
         if (!user) return;
         const { error } = await supabase.from('profiles').update(patch).eq('id', user.id);
         if (error) throw error;

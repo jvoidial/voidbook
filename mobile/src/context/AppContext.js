@@ -25,6 +25,7 @@ export function AppProvider({ children }) {
         supabase.from('conversations').select('*, messages(*)').or(`user_a.eq.${me},user_b.eq.${me}`),
         supabase.from('notifications').select('*').eq('user_id', me).order('created_at', { ascending: false }).limit(50)
       ]);
+      const giftsRes = await supabase.from('gifts').select('*').limit(200);
       setState({
         users: profiles.data || [],
         profiles: Object.fromEntries((profiles.data || []).map(p => [p.id, p])),
@@ -37,6 +38,7 @@ export function AppProvider({ children }) {
           messages: c.messages || []
         })),
         notifications: notifs.data || [],
+        gifts: (giftsRes && giftsRes.data) || [],
         comments: [], likes: [], messages: []
       });
       setReady(true);
@@ -53,6 +55,8 @@ export function AppProvider({ children }) {
           c.id === p.new.conversation_id ? { ...c, messages: [...c.messages, p.new] } : c) })))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' },
         p => setState(s => ({ ...s, notifications: [p.new, ...s.notifications] })))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'gifts' },
+        p => setState(s => ({ ...s, gifts: [p.new, ...(s.gifts || [])] })))
       .subscribe();
     return () => supabase.removeChannel(sub);
   }, [me]);
@@ -60,9 +64,9 @@ export function AppProvider({ children }) {
   const api = {
     state, ready,
 
-    addPost: async (content) => {
+    addPost: async (content, mediaUrl, mediaType) => {
       const { data, error } = await supabase.from('posts')
-        .insert({ content, author_id: me })
+        .insert({ content, author_id: me, media_url: mediaUrl || null, media_type: mediaType || null })
         .select('*, author:profiles(*)').single();
       if (error) throw error;
       setState(s => ({ ...s, posts: [data, ...s.posts] }));
@@ -160,6 +164,16 @@ export function AppProvider({ children }) {
     clearNotifications: async () => {
       await supabase.from('notifications').delete().eq('user_id', me);
       setState(s => ({ ...s, notifications: [] }));
+    },
+
+    sendGift: async (recipientId, postId, amount, emoji = '🖤', message = null) => {
+      const { data, error } = await supabase.from('gifts').insert({
+        sender_id: me, recipient_id: recipientId, post_id: postId, amount, emoji, message
+      }).select().single();
+      if (error) throw error;
+      setState(s => ({ ...s, gifts: [data, ...(s.gifts || [])],
+        profiles: { ...s.profiles, [me]: { ...s.profiles[me], tokens: Math.max(0, (s.profiles[me]?.tokens || 0) - amount) } } }));
+      return data;
     },
 
     // Placeholders — keep signatures so existing screens don't crash

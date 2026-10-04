@@ -23,11 +23,22 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "autolinking": {
-      "exclude": [
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "VOIDBOOK uses your photos for profile pictures and posts.",
+          "cameraPermission": "VOIDBOOK uses your camera to take photos and record videos."
+        }
+      ],
+      [
         "expo-camera",
-        "expo-image-picker"
+        {
+          "cameraPermission": "VOIDBOOK uses your camera for photos, videos, and live streams.",
+          "microphonePermission": "VOIDBOOK uses your microphone for video and live streams.",
+          "recordAudioAndroid": true
+        }
       ]
-    }
+    ]
   }
 }
