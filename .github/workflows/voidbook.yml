@@ -22,6 +22,10 @@ jobs:
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
       EXPO_PUBLIC_WORKER_URL: ${{ secrets.EXPO_PUBLIC_WORKER_URL }}
+      EXPO_PUBLIC_LIVEKIT_URL: ${{ secrets.EXPO_PUBLIC_LIVEKIT_URL }}
+      EXPO_PUBLIC_LIVEKIT_API_KEY: ${{ secrets.EXPO_PUBLIC_LIVEKIT_API_KEY }}
+      EXPO_PUBLIC_LIVEKIT_API_SECRET: ${{ secrets.EXPO_PUBLIC_LIVEKIT_API_SECRET }}
+      EXPO_PUBLIC_LIVEKIT_TOKEN_SERVER_ID: ${{ secrets.EXPO_PUBLIC_LIVEKIT_TOKEN_SERVER_ID }}
 
     steps:
       - uses: actions/checkout@v4
@@ -57,6 +61,10 @@ jobs:
           printf 'EXPO_PUBLIC_SUPABASE_URL=%s\n' "$EXPO_PUBLIC_SUPABASE_URL" > .env
           printf 'EXPO_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$EXPO_PUBLIC_SUPABASE_ANON_KEY" >> .env
           printf 'EXPO_PUBLIC_WORKER_URL=%s\n' "$EXPO_PUBLIC_WORKER_URL" >> .env
+          printf 'EXPO_PUBLIC_LIVEKIT_URL=%s\n' "$EXPO_PUBLIC_LIVEKIT_URL" >> .env
+          printf 'EXPO_PUBLIC_LIVEKIT_API_KEY=%s\n' "$EXPO_PUBLIC_LIVEKIT_API_KEY" >> .env
+          printf 'EXPO_PUBLIC_LIVEKIT_API_SECRET=%s\n' "$EXPO_PUBLIC_LIVEKIT_API_SECRET" >> .env
+          printf 'EXPO_PUBLIC_LIVEKIT_TOKEN_SERVER_ID=%s\n' "$EXPO_PUBLIC_LIVEKIT_TOKEN_SERVER_ID" >> .env
           echo "  .env (redacted):"
           sed 's/=.*/=<set>/' .env
 

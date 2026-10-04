@@ -25,7 +25,12 @@
     "react-native-url-polyfill": "^2.0.0",
     "expo-image-picker": "~15.0.7",
     "expo-camera": "~16.0.10",
-    "expo-av": "~14.0.7"
+    "expo-av": "~14.0.7",
+    "@livekit/react-native": "^2.6.2",
+    "@livekit/react-native-webrtc": "^124.0.5",
+    "@livekit/react-native-expo-plugin": "^1.0.2",
+    "@config-plugins/react-native-webrtc": "^8.0.0",
+    "livekit-client": "^2.15.7"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"

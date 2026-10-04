@@ -25,6 +25,15 @@
     ],
     "plugins": [
       [
+        "@livekit/react-native-expo-plugin",
+        {
+          "android": {
+            "audioType": "communication"
+          }
+        }
+      ],
+      "@config-plugins/react-native-webrtc",
+      [
         "expo-image-picker",
         {
           "photosPermission": "VOIDBOOK uses your photos for profile pictures and posts.",
