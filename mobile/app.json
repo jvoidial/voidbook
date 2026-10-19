@@ -24,7 +24,17 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "plugins": [],
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 24
+          }
+        }
+      ],
+      "@config-plugins/react-native-webrtc"
+    ],
     "newArchEnabled": false,
     "ios": {
       "newArchEnabled": false

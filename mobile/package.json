@@ -28,7 +28,8 @@
     "@livekit/react-native": "^2.6.2",
     "@livekit/react-native-webrtc": "^125.0.8",
     "@config-plugins/react-native-webrtc": "^9.0.0",
-    "livekit-client": "^2.9.0"
+    "livekit-client": "^2.9.0",
+    "expo-build-properties": "~0.12.5"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"
