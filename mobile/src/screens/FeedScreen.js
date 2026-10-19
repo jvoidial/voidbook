@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, Modal, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -12,87 +12,82 @@ export default function FeedScreen() {
   const nav = useNavigation();
   const { state, addPost } = useApp();
   const { user } = useAuth();
+  const [modal, setModal] = useState(false);
   const [text, setText] = useState('');
-  const [activeTab, setActiveTab] = useState('For you');
-  const usersById = Object.fromEntries(state.users.map(u => [u.id, u]));
+  const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
 
   const submit = () => {
     if (!text.trim()) return;
     addPost(text);
     setText('');
+    setModal(false);
   };
 
   return (
     <SafeAreaView style={S.c} edges={['top']}>
-      {/* Top Bar with Logo */}
+      {/* X-Style Header */}
       <View style={S.topBar}>
-        <View style={S.profileCircle}>
-          <Text style={S.profileT}>{(user?.name || '?')[0]}</Text>
-        </View>
-        
-        {/* YOUR CUSTOM LOGO */}
-        <Image 
-          source={require('../../assets/logo.jpg')} 
-          style={{ width: 32, height: 32, resizeMode: 'contain', tintColor: T.text }} 
-        />
-        
-        <TouchableOpacity style={S.settingsBtn} onPress={() => nav.navigate('Settings')}>
-          <Ionicons name="settings-outline" size={22} color={T.text} />
+        <TouchableOpacity onPress={() => nav.navigate('Profile')}>
+          <View style={S.av}><Text style={S.avT}>{(user?.name || '?')[0].toUpperCase()}</Text></View>
         </TouchableOpacity>
-      </View>
-
-      {/* Tabs */}
-      <View style={S.tabs}>
-        {['For you', 'Following'].map(t => (
-          <TouchableOpacity key={t} style={[S.tab, activeTab === t && S.tabActive]} onPress={() => setActiveTab(t)}>
-            <Text style={[S.tabT, activeTab === t && S.tabTActive]}>{t}</Text>
-            {activeTab === t && <View style={S.activeLine} />}
-          </TouchableOpacity>
-        ))}
+        
+        <Ionicons name="logo-twitter" size={28} color={T.text} />
+        
+        <TouchableOpacity onPress={() => nav.navigate('Settings')}>
+          <Ionicons name="sparkles" size={24} color={T.text} />
+        </TouchableOpacity>
       </View>
 
       <FlatList
         data={state.posts}
         keyExtractor={i => i.id}
-        ListHeaderComponent={
-          <View style={S.composer}>
-            <View style={S.myAv}><Text style={S.myAvT}>{(user?.name || '?')[0]?.toUpperCase()}</Text></View>
-            <TextInput style={S.input} placeholder="What is happening?!" placeholderTextColor={T.muted} multiline value={text} onChangeText={setText} />
-            {text.length > 0 && (
-              <TouchableOpacity style={S.postBtn} onPress={submit}>
-                <Text style={S.postBtnT}>Post</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        }
         renderItem={({ item }) => <PostCard post={item} user={usersById[item.userId]} />}
       />
 
-      <TouchableOpacity style={S.fab} onPress={() => {}}>
-        <Ionicons name="create-outline" size={26} color="#FFF" />
+      {/* Floating Action Button (Compose) */}
+      <TouchableOpacity style={S.fab} onPress={() => setModal(true)}>
+        <Ionicons name="pencil" size={24} color="#FFF" />
       </TouchableOpacity>
+
+      {/* Compose Modal */}
+      <Modal visible={modal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={[S.c, { backgroundColor: T.bg }]}>
+          <View style={S.modalHeader}>
+            <TouchableOpacity onPress={() => setModal(false)}>
+              <Text style={{ color: T.text, fontSize: 16 }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[S.postBtn, !text.trim() && { opacity: 0.5 }]} disabled={!text.trim()} onPress={submit}>
+              <Text style={S.postBtnT}>Post</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={S.modalBody}>
+            <View style={S.av}><Text style={S.avT}>{(user?.name || '?')[0].toUpperCase()}</Text></View>
+            <TextInput 
+              style={S.modalInput} 
+              placeholder="What is happening?!" 
+              placeholderTextColor={T.muted} 
+              multiline 
+              autoFocus 
+              value={text} 
+              onChangeText={setText} 
+            />
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const S = StyleSheet.create({
   c: { flex: 1, backgroundColor: T.bg },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 },
-  profileCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' },
-  profileT: { color: T.text, fontWeight: 'bold', fontSize: 14 },
-  settingsBtn: { padding: 4 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: T.divider },
+  av: { width: 32, height: 32, borderRadius: 16, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' },
+  avT: { color: T.text, fontWeight: 'bold', fontSize: 14 },
+  fab: { position: 'absolute', bottom: 20, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 5 },
   
-  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: T.divider },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 14 },
-  tabT: { color: T.muted, fontWeight: '700', fontSize: 15 },
-  tabTActive: { color: T.text },
-  activeLine: { position: 'absolute', bottom: 0, width: 56, height: 4, backgroundColor: T.accent, borderRadius: 2 },
-
-  composer: { flexDirection: 'row', alignItems: 'flex-start', padding: 16, borderBottomWidth: 1, borderBottomColor: T.divider },
-  myAv: { width: 40, height: 40, borderRadius: 20, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  myAvT: { color: T.text, fontWeight: 'bold', fontSize: 15 },
-  input: { flex: 1, color: T.text, fontSize: 18, minHeight: 40, textAlignVertical: 'top', marginTop: 4 },
-  postBtn: { backgroundColor: T.accent, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20, marginTop: 8 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: T.divider },
+  postBtn: { backgroundColor: T.accent, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20 },
   postBtnT: { color: '#FFF', fontWeight: '700', fontSize: 14 },
-  fab: { position: 'absolute', bottom: 20, right: 20, width: 60, height: 60, borderRadius: 30, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', elevation: 6 }
+  modalBody: { flexDirection: 'row', padding: 16, flex: 1 },
+  modalInput: { flex: 1, color: T.text, fontSize: 18, marginLeft: 12, textAlignVertical: 'top' }
 });

@@ -14,7 +14,6 @@ import SignInScreen from './screens/auth/SignInScreen';
 import SignUpScreen from './screens/auth/SignUpScreen';
 import FeedScreen from './screens/FeedScreen';
 import SearchScreen from './screens/SearchScreen';
-import WatchScreen from './screens/WatchScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 import MessagesScreen from './screens/MessagesScreen';
 import ProfileScreen from './screens/ProfileScreen';
@@ -28,26 +27,13 @@ const Tab = createBottomTabNavigator();
 const RootStack = createNativeStackNavigator();
 const AuthStack = createNativeStackNavigator();
 
-const navTheme = {
-  ...DarkTheme,
-  colors: {
-    ...DarkTheme.colors,
-    background: T.bg,
-    card: T.bg,
-    border: T.divider,
-    text: T.text,
-    primary: T.accent
-  }
-};
+const navTheme = { ...DarkTheme, colors: { ...DarkTheme.colors, background: T.bg, card: T.bg, border: T.border, text: T.text, primary: T.accent } };
 
 const ICONS = {
-  Home:          ['home-outline', 'home'],
-  Search:        ['search-outline', 'search'],
-  Watch:         ['play-circle-outline', 'play-circle'],
-  Notifications: ['notifications-outline', 'notifications'],
-  Messages:      ['mail-outline', 'mail'],
-  Profile:       ['person-outline', 'person'],
-  Settings:      ['settings-outline', 'settings']
+  Home:          ['home', 'home-outline'], // X uses solid when active
+  Search:        ['search', 'search-outline'],
+  Notifications: ['notifications', 'notifications-outline'],
+  Messages:      ['mail', 'mail-outline']
 };
 
 function AuthFlow() {
@@ -63,48 +49,28 @@ function AuthFlow() {
 function MainTabs() {
   const { state } = useApp();
   const unreadNotifs = (state.notifications || []).filter(n => !n.read).length;
-  const unreadMsgs = (state.conversations || []).reduce((acc, c) =>
-    acc + c.messages.filter(m => m.from !== 'me' && !m.read).length, 0);
+  const unreadMsgs = (state.conversations || []).reduce((acc, c) => acc + c.messages.filter(m => m.from !== 'me' && !m.read).length, 0);
 
   return (
     <Tab.Navigator screenOptions={({ route }) => ({
       headerShown: false,
-      tabBarStyle: {
-        backgroundColor: T.bg,
-        borderTopColor: T.divider,
-        height: 64,
-        paddingBottom: 8,
-        paddingTop: 8
-      },
+      tabBarStyle: { backgroundColor: T.bg, borderTopColor: T.border, height: 60, paddingBottom: 8, paddingTop: 8 },
       tabBarActiveTintColor: T.text,
       tabBarInactiveTintColor: T.subText,
-      tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
+      tabBarLabelStyle: { display: 'none' }, // X hides labels
       tabBarIcon: ({ color, focused }) => {
-        const [off, on] = ICONS[route.name] || ['ellipse-outline', 'ellipse'];
-        return <Ionicons name={focused ? on : off} size={24} color={color} />;
+        const [on, off] = ICONS[route.name] || ['ellipse', 'ellipse-outline'];
+        return <Ionicons name={focused ? on : off} size={28} color={color} />;
       }
     })}>
       <Tab.Screen name="Home" component={FeedScreen} />
       <Tab.Screen name="Search" component={SearchScreen} />
-      <Tab.Screen name="Watch" component={WatchScreen} />
-      <Tab.Screen
-        name="Notifications"
-        component={NotificationsScreen}
-        options={{
-          tabBarBadge: unreadNotifs > 0 ? unreadNotifs : undefined,
-          tabBarBadgeStyle: { backgroundColor: T.danger, color: '#FFF', fontSize: 10 }
-        }}
-      />
-      <Tab.Screen
-        name="Messages"
-        component={MessagesScreen}
-        options={{
-          tabBarBadge: unreadMsgs > 0 ? unreadMsgs : undefined,
-          tabBarBadgeStyle: { backgroundColor: T.accent, color: '#000', fontSize: 10 }
-        }}
-      />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
+      <Tab.Screen name="Notifications" component={NotificationsScreen} options={{ tabBarBadge: unreadNotifs > 0 ? unreadNotifs : undefined, tabBarBadgeStyle: { backgroundColor: T.accent, color: '#FFF' } }} />
+      <Tab.Screen name="Messages" component={MessagesScreen} options={{ tabBarBadge: unreadMsgs > 0 ? unreadMsgs : undefined, tabBarBadgeStyle: { backgroundColor: T.accent, color: '#FFF' } }} />
+      
+      {/* Hidden Tabs (Accessible via navigation, but not shown on bottom bar) */}
+      <Tab.Screen name="Profile" component={ProfileScreen} options={{ tabBarButton: () => null }} />
+      <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarButton: () => null }} />
     </Tab.Navigator>
   );
 }
