@@ -27,7 +27,6 @@
     "expo-camera": "~16.0.10",
     "@livekit/react-native": "^2.6.2",
     "@livekit/react-native-webrtc": "^125.0.8",
-    "@livekit/react-native-expo-plugin": "^1.0.2",
     "@config-plugins/react-native-webrtc": "^9.0.0",
     "livekit-client": "^2.9.0"
   },
