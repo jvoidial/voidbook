@@ -76,8 +76,8 @@ function MainTabs() {
         paddingBottom: 8,
         paddingTop: 8
       },
-      tabBarActiveTintColor: T.accent,
-      tabBarInactiveTintColor: T.muted,
+      tabBarActiveTintColor: T.text,
+      tabBarInactiveTintColor: T.subText,
       tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
       tabBarIcon: ({ color, focused }) => {
         const [off, on] = ICONS[route.name] || ['ellipse-outline', 'ellipse'];

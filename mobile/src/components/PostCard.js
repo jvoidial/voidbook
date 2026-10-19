@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Image, Modal, TextInput } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
@@ -7,19 +7,6 @@ import { useApp } from '../context/AppContext';
 import { theme as T } from '../theme';
 
 export default function PostCard({ post, user }) {
-  const [giftOpen, setGiftOpen] = useState(false);
-  const [giftAmount, setGiftAmount] = useState(10);
-  const [giftEmoji, setGiftEmoji] = useState('🖤');
-  const { sendGift } = useApp();
-  const openGift = (postId, userId) => { setGiftOpen(true); setGiftAmount(10); };
-  const giveGift = async () => {
-    try {
-      await sendGift(user?.id, post.id, giftAmount, giftEmoji, null);
-      setGiftOpen(false);
-      Alert.alert('Sent!', `${giftEmoji} ${giftAmount} tokens sent to ${user?.name}`);
-    } catch (e) { Alert.alert('Gift failed', e.message); }
-  };
-
   const nav = useNavigation();
   const { user: me } = useAuth();
   const { state, likePost, sharePost, deletePost, toggleBookmark } = useApp();
@@ -28,115 +15,72 @@ export default function PostCard({ post, user }) {
   const bookmarked = state.bookmarks.includes(post.id);
 
   const renderContent = (c) => (c || '').split(/(\s+)/).map((part, i) => {
-    if (part.startsWith('#') || part.startsWith('@')) return <Text key={i} style={{ color: T.accent, fontWeight: '600' }}>{part}</Text>;
+    if (part.startsWith('#') || part.startsWith('@')) return <Text key={i} style={{ color: T.accent }}>{part}</Text>;
     return part;
   });
 
   return (
     <View style={S.card}>
-      {/* Thread line (X-style) */}
-      <View style={S.threadLine} />
-
+      <TouchableOpacity onPress={() => nav.push('UserProfile', { userId: user?.id })}>
+        <View style={S.av}><Text style={S.avT}>{(user?.name || '?')[0]?.toUpperCase()}</Text></View>
+      </TouchableOpacity>
+      
       <View style={S.contentWrap}>
         <View style={S.head}>
-          <TouchableOpacity onPress={() => nav.push('UserProfile', { userId: user?.id })}>
-            <View style={S.av}><Text style={S.avT}>{(user?.name || '?')[0]?.toUpperCase()}</Text></View>
-          </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Text style={S.nm}>{user?.name || 'Unknown'}</Text>
-              {user?.verified && <Ionicons name="checkmark-circle" size={14} color={T.accent} />}
-              <Text style={S.hd}>@{user?.handle?.replace('@','')} · {timeLabel}</Text>
-            </View>
-            <Text style={S.ct}>{renderContent(post.content)}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
+            <Text style={S.nm} numberOfLines={1}>{user?.name || 'Unknown'}</Text>
+            {user?.verified && <Ionicons name="checkmark-circle" size={14} color={T.accent} />}
+            <Text style={S.hd} numberOfLines={1}>@{user?.handle?.replace('@','')} · {timeLabel}</Text>
           </View>
           <TouchableOpacity onPress={() => Alert.alert('Options', '', [
             ...(me?.id === post.userId ? [{ text:'Delete', style:'destructive', onPress:() => deletePost(post.id) }] : []),
-            { text: 'Report', onPress: () => Alert.alert('Reported') },
             { text: 'Cancel', style: 'cancel' }
           ])}>
             <Ionicons name="ellipsis-horizontal" size={16} color={T.muted} />
           </TouchableOpacity>
         </View>
 
+        <Text style={S.ct}>{renderContent(post.content)}</Text>
+
         {post.media_url && post.media_type === 'image' && (
-          <Image source={{ uri: post.media_url }} style={{ width: '100%', height: 220, borderRadius: 12, marginBottom: 10 }} resizeMode="cover" />
+          <Image source={{ uri: post.media_url }} style={{ width: '100%', height: 220, borderRadius: 16, marginTop: 8, borderWidth: 1, borderColor: T.border }} resizeMode="cover" />
         )}
 
-        {/* X-Style Action Bar */}
         <View style={S.bar}>
           <TouchableOpacity style={S.b} onPress={() => nav.push('PostDetail', { postId: post.id })}>
-            <Ionicons name="chatbubble-outline" size={16} color={T.muted} />
-            <Text style={S.bt}>{(post.comments||[]).length}</Text>
+            <Ionicons name="chatbubble-outline" size={18} color={T.muted} />
+            <Text style={S.bt}>{(post.comments||[]).length || ''}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={S.b} onPress={() => sharePost(post.id)}>
-            <Ionicons name="repeat-outline" size={16} color={T.muted} />
-            <Text style={S.bt}>{post.shares || 0}</Text>
+            <Ionicons name="repeat-outline" size={20} color={T.muted} />
+            <Text style={S.bt}>{post.shares || ''}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={S.b} onPress={() => likePost(post.id)}>
-            <Ionicons name="heart-outline" size={16} color={T.muted} />
-            <Text style={S.bt}>{post.likes || 0}</Text>
+            <Ionicons name="heart-outline" size={18} color={T.muted} />
+            <Text style={S.bt}>{post.likes || ''}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={S.b}>
-            <Ionicons name="stats-chart-outline" size={16} color={T.muted} />
-            <Text style={S.bt}>1.2K</Text>
+            <Ionicons name="stats-chart-outline" size={18} color={T.muted} />
           </TouchableOpacity>
           <TouchableOpacity style={S.b} onPress={() => toggleBookmark(post.id)}>
-            <Ionicons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={16} color={bookmarked ? T.accent : T.muted} />
-          </TouchableOpacity>
-          <TouchableOpacity style={S.b} onPress={() => openGift(post.id, post.userId)}>
-            <Ionicons name="gift-outline" size={16} color={T.accent} />
-          </TouchableOpacity>
-          <TouchableOpacity style={S.b}>
-            <Ionicons name="share-outline" size={16} color={T.muted} />
+            <Ionicons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarked ? T.accent : T.muted} />
           </TouchableOpacity>
         </View>
       </View>
-      <Modal visible={giftOpen} transparent animationType="fade">
-        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.85)', justifyContent:'center', padding:24 }}>
-          <View style={{ backgroundColor:T.surface, borderRadius:20, padding:24, borderWidth:1, borderColor:T.border }}>
-            <Text style={{ color:T.text, fontSize:20, fontWeight:'800', marginBottom:12 }}>Send Gift</Text>
-            <Text style={{ color:T.muted, marginBottom:16 }}>to {user?.name}</Text>
-            <View style={{ flexDirection:'row', gap:12, marginBottom:16 }}>
-              {['🖤','💎','🔥','⚡','🌟'].map(e => (
-                <TouchableOpacity key={e} onPress={() => setGiftEmoji(e)} style={{ padding:10, borderRadius:12, borderWidth:2, borderColor: giftEmoji===e ? T.accent : T.border }}>
-                  <Text style={{ fontSize:24 }}>{e}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={{ flexDirection:'row', gap:10, marginBottom:16 }}>
-              {[10, 50, 100, 500].map(a => (
-                <TouchableOpacity key={a} onPress={() => setGiftAmount(a)} style={{ flex:1, padding:12, borderRadius:12, borderWidth:2, borderColor: giftAmount===a ? T.accent : T.border, alignItems:'center' }}>
-                  <Text style={{ color: giftAmount===a ? T.accent : T.text, fontWeight:'700' }}>{a}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={{ flexDirection:'row', gap:12 }}>
-              <TouchableOpacity onPress={() => setGiftOpen(false)} style={{ flex:1, padding:14, borderRadius:12, borderWidth:1, borderColor:T.border, alignItems:'center' }}>
-                <Text style={{ color:T.text, fontWeight:'700' }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={giveGift} style={{ flex:1, padding:14, borderRadius:12, backgroundColor:T.accent, alignItems:'center' }}>
-                <Text style={{ color:'#000', fontWeight:'800' }}>Send {giftAmount}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
 
 const S = StyleSheet.create({
   card: { flexDirection: 'row', backgroundColor: T.bg, paddingHorizontal: 16, paddingTop: 12, borderBottomWidth: 1, borderBottomColor: T.divider },
-  threadLine: { width: 2, backgroundColor: T.divider, position: 'absolute', left: 33, top: 48, bottom: -12 },
-  contentWrap: { flex: 1, marginLeft: 12, paddingBottom: 12 },
-  head: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 },
-  av: { width: 36, height: 36, borderRadius: 18, backgroundColor: T.surface, borderWidth: 1.5, borderColor: T.accent, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
-  avT: { color: T.accent, fontWeight: '900', fontSize: 14 },
+  av: { width: 40, height: 40, borderRadius: 20, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  avT: { color: T.text, fontWeight: 'bold', fontSize: 16 },
+  contentWrap: { flex: 1, paddingBottom: 12 },
+  head: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
   nm: { color: T.text, fontWeight: '700', fontSize: 15 },
-  hd: { color: T.muted, fontSize: 13 },
-  ct: { color: T.text, fontSize: 15, lineHeight: 21, marginTop: 2, marginBottom: 10 },
-  bar: { flexDirection: 'row', justifyContent: 'space-between', paddingRight: 24 },
-  b: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 },
-  bt: { color: T.muted, fontSize: 12 }
+  hd: { color: T.muted, fontSize: 15 },
+  ct: { color: T.text, fontSize: 15, lineHeight: 20, marginTop: 2, marginBottom: 8 },
+  bar: { flexDirection: 'row', justifyContent: 'space-between', paddingRight: 32, marginTop: 4 },
+  b: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  bt: { color: T.muted, fontSize: 13 }
 });

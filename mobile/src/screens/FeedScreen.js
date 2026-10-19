@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, ScrollView, RefreshControl, Alert } from 'react-native';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -7,16 +7,12 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import PostCard from '../components/PostCard';
 import { theme as T } from '../theme';
-import { pickImage, pickVideo, uploadMedia } from '../lib/media';
-import { Image } from 'react-native';
 
 export default function FeedScreen() {
   const nav = useNavigation();
   const { state, addPost } = useApp();
   const { user } = useAuth();
   const [text, setText] = useState('');
-  const [media, setMedia] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('For you');
   const usersById = Object.fromEntries(state.users.map(u => [u.id, u]));
 
@@ -26,22 +22,31 @@ export default function FeedScreen() {
     setText('');
   };
 
-  const onRefresh = () => { setRefreshing(true); setTimeout(() => setRefreshing(false), 800); };
-
   return (
     <SafeAreaView style={S.c} edges={['top']}>
+      {/* Top Bar with Logo */}
       <View style={S.topBar}>
-        <Text style={S.logo}>VOID<Text style={{ color: T.accent }}>BOOK</Text></Text>
-        <TouchableOpacity style={S.profileBtn} onPress={() => nav.navigate('Profile')}>
-          <View style={S.profileAv}><Text style={S.profileAvT}>{(user?.name || '?')[0]}</Text></View>
+        <View style={S.profileCircle}>
+          <Text style={S.profileT}>{(user?.name || '?')[0]}</Text>
+        </View>
+        
+        {/* YOUR CUSTOM LOGO */}
+        <Image 
+          source={require('../../assets/logo.jpg')} 
+          style={{ width: 32, height: 32, resizeMode: 'contain', tintColor: T.text }} 
+        />
+        
+        <TouchableOpacity style={S.settingsBtn} onPress={() => nav.navigate('Settings')}>
+          <Ionicons name="settings-outline" size={22} color={T.text} />
         </TouchableOpacity>
       </View>
 
-      {/* X-Style Tabs */}
+      {/* Tabs */}
       <View style={S.tabs}>
         {['For you', 'Following'].map(t => (
           <TouchableOpacity key={t} style={[S.tab, activeTab === t && S.tabActive]} onPress={() => setActiveTab(t)}>
             <Text style={[S.tabT, activeTab === t && S.tabTActive]}>{t}</Text>
+            {activeTab === t && <View style={S.activeLine} />}
           </TouchableOpacity>
         ))}
       </View>
@@ -49,49 +54,22 @@ export default function FeedScreen() {
       <FlatList
         data={state.posts}
         keyExtractor={i => i.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={T.accent} />}
         ListHeaderComponent={
           <View style={S.composer}>
             <View style={S.myAv}><Text style={S.myAvT}>{(user?.name || '?')[0]?.toUpperCase()}</Text></View>
             <TextInput style={S.input} placeholder="What is happening?!" placeholderTextColor={T.muted} multiline value={text} onChangeText={setText} />
-            {media && <Image source={{ uri: media.uri }} style={{ width:'100%', height:200, borderRadius:12, marginTop:8 }} />}
-            <View style={{ flexDirection:'row', gap:16, marginTop:10, alignItems:'center' }}>
-              <TouchableOpacity onPress={async () => {
-                try { const a = await pickImage({ allowsEditing: false }); if (a) setMedia({ ...a, kind: 'image' }); }
-                catch (e) { Alert.alert('Error', e.message); }
-              }}>
-                <Ionicons name="image-outline" size={22} color={T.success} />
+            {text.length > 0 && (
+              <TouchableOpacity style={S.postBtn} onPress={submit}>
+                <Text style={S.postBtnT}>Post</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={async () => {
-                try { const a = await pickVideo(); if (a) setMedia({ ...a, kind: 'video' }); }
-                catch (e) { Alert.alert('Error', e.message); }
-              }}>
-                <Ionicons name="videocam-outline" size={22} color={T.danger} />
-              </TouchableOpacity>
-              <View style={{ flex:1 }} />
-              {(text.length > 0 || media) && (
-                <TouchableOpacity style={S.postBtn} onPress={async () => {
-                  try {
-                    let url = null, type = null;
-                    if (media) {
-                      url = await uploadMedia(media, 'post', user?.id);
-                      type = media.kind;
-                    }
-                    await addPost(text, url, type);
-                    setText(''); setMedia(null);
-                  } catch (e) { Alert.alert('Post failed', e.message); }
-                }}>
-                  <Text style={S.postBtnT}>Post</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+            )}
           </View>
         }
         renderItem={({ item }) => <PostCard post={item} user={usersById[item.userId]} />}
       />
 
       <TouchableOpacity style={S.fab} onPress={() => {}}>
-        <Ionicons name="add" size={28} color="#000" />
+        <Ionicons name="create-outline" size={26} color="#FFF" />
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -99,23 +77,22 @@ export default function FeedScreen() {
 
 const S = StyleSheet.create({
   c: { flex: 1, backgroundColor: T.bg },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
-  logo: { color: T.text, fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
-  profileBtn: { padding: 4 },
-  profileAv: { width: 32, height: 32, borderRadius: 16, backgroundColor: T.surface, borderWidth: 1.5, borderColor: T.accent, alignItems: 'center', justifyContent: 'center' },
-  profileAvT: { color: T.accent, fontWeight: '900', fontSize: 14 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 },
+  profileCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' },
+  profileT: { color: T.text, fontWeight: 'bold', fontSize: 14 },
+  settingsBtn: { padding: 4 },
   
   tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: T.divider },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 14 },
-  tabActive: { borderBottomWidth: 2, borderBottomColor: T.accent },
-  tabT: { color: T.muted, fontWeight: '600', fontSize: 14 },
+  tabT: { color: T.muted, fontWeight: '700', fontSize: 15 },
   tabTActive: { color: T.text },
-  
+  activeLine: { position: 'absolute', bottom: 0, width: 56, height: 4, backgroundColor: T.accent, borderRadius: 2 },
+
   composer: { flexDirection: 'row', alignItems: 'flex-start', padding: 16, borderBottomWidth: 1, borderBottomColor: T.divider },
   myAv: { width: 40, height: 40, borderRadius: 20, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  myAvT: { color: T.accent, fontWeight: '900', fontSize: 15 },
-  input: { flex: 1, color: T.text, fontSize: 16, minHeight: 40, textAlignVertical: 'top' },
+  myAvT: { color: T.text, fontWeight: 'bold', fontSize: 15 },
+  input: { flex: 1, color: T.text, fontSize: 18, minHeight: 40, textAlignVertical: 'top', marginTop: 4 },
   postBtn: { backgroundColor: T.accent, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20, marginTop: 8 },
-  postBtnT: { color: '#000', fontWeight: '800', fontSize: 13 },
-  fab: { position: 'absolute', bottom: 20, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', elevation: 6 }
+  postBtnT: { color: '#FFF', fontWeight: '700', fontSize: 14 },
+  fab: { position: 'absolute', bottom: 20, right: 20, width: 60, height: 60, borderRadius: 30, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', elevation: 6 }
 });

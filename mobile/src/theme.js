@@ -1,41 +1,27 @@
 export const theme = {
-  // VOID palette
   bg:         '#000000',
-  surface:    '#0B0B0B',
-  elevated:   '#141414',
-  card:       '#0F0F0F',
-  border:     '#1E1E1E',
-  divider:    '#161616',
-  text:       '#FFFFFF',
-  subText:    '#B0B0B0',
-  muted:      '#6E6E6E',
-  accent:     '#00FFCC',
-  accentDim:  'rgba(0,255,204,0.15)',
-  danger:     '#FF4455',
-  dangerDim:  'rgba(255,68,85,0.15)',
-  success:    '#22CC88',
-  warn:       '#FFB020',
+  surface:    '#16181C', 
+  elevated:   '#273340',
+  card:       '#16181C',
+  border:     '#2F3336',
+  divider:    '#2F3336',
+  text:       '#E7E9EA',
+  subText:    '#71767B',
+  muted:      '#71767B',
+  accent:     '#1D9BF0', // Twitter Blue
+  accentDim:  'rgba(29,155,240,0.15)',
+  danger:     '#F4212E', // Twitter Like red
+  dangerDim:  'rgba(244,33,46,0.15)',
+  success:    '#00BA7C',
+  warn:       '#FFD400',
 
-  // Spacing scale
   xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32,
+  rSm: 4, rMd: 8, rLg: 16, rXl: 24, rPill: 999,
 
-  // Radii
-  rSm: 8, rMd: 12, rLg: 16, rXl: 24, rPill: 999,
-
-  // Typography
-  h1: { fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
-  h2: { fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
+  h1: { fontSize: 28, fontWeight: '800' },
+  h2: { fontSize: 22, fontWeight: '800' },
   h3: { fontSize: 18, fontWeight: '700' },
-  body: { fontSize: 15, lineHeight: 22 },
+  body: { fontSize: 15, lineHeight: 20 },
   small: { fontSize: 13 },
-  tiny: { fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase' },
-
-  // Elevation
-  shadow: {
-    shadowColor: '#00FFCC',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4
-  }
+  tiny: { fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase' }
 };

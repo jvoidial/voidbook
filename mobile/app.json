@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "VOIDBOOK",
-    "slug": "voidbook",
+    "name": "Tweeter",
+    "slug": "tweeter",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
