@@ -23,16 +23,6 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "plugins": [
-      "@config-plugins/react-native-webrtc",
-      [
-        "@livekit/react-native-expo-plugin",
-        {
-          "android": {
-            "audioType": "communication"
-          }
-        }
-      ]
-    ]
+    "plugins": []
   }
 }
