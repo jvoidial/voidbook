@@ -12,7 +12,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
-      }
+      },
+      "newArchEnabled": false
     },
     "splash": {
       "image": "./assets/splash.png",
@@ -23,6 +24,10 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "plugins": []
+    "plugins": [],
+    "newArchEnabled": false,
+    "ios": {
+      "newArchEnabled": false
+    }
   }
 }

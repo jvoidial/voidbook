@@ -51,6 +51,13 @@ jobs:
           rm -rf node_modules
           rm -f package-lock.json
 
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk/25.* /usr/local/lib/android/sdk/ndk/26.3.* /usr/local/lib/android/sdk/ndk/27.* || true
+          sudo rm -rf /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          sudo docker image prune -f || true
+          df -h
+
       - name: Install deps
         working-directory: mobile
         run: npm install --legacy-peer-deps --no-audit --no-fund
@@ -112,6 +119,12 @@ jobs:
             --dev=false \
             --bundle-output=/tmp/precheck.bundle \
             --assets-dest=/tmp/precheck-assets 2>&1 | tail -40
+
+      - name: Pre-install NDK and CMake
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;26.1.10909125" "cmake;3.22.1" || true
+          df -h $ANDROID_HOME
 
       - name: Write local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > mobile/android/local.properties
