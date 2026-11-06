@@ -85,6 +85,7 @@ jobs:
           }
           GRADLE_EOF
           fi
+          rm -f debug.keystore
           keytool -genkeypair -v -storetype PKCS12 \
             -keystore debug.keystore -storepass android \
             -alias androiddebugkey -keypass android \
