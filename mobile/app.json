@@ -35,33 +35,19 @@
           }
         }
       ],
+      "expo-system-ui",
       [
         "expo-image-picker",
         {
-          "photosPermission": "sqawk uses your photos.",
-          "cameraPermission": "sqawk uses your camera."
+          "photosPermission": "sqawk uses photos.",
+          "cameraPermission": "sqawk uses camera."
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "sqawk uses your camera.",
-          "microphonePermission": "sqawk uses your mic.",
-          "recordAudioAndroid": true
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Squawk uses photos.",
-          "cameraPermission": "Squawk uses camera."
-        }
-      ],
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Squawk uses camera.",
-          "microphonePermission": "Squawk uses mic.",
+          "cameraPermission": "sqawk uses camera.",
+          "microphonePermission": "sqawk uses mic.",
           "recordAudioAndroid": true
         }
       ]

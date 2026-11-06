@@ -17,10 +17,6 @@ jobs:
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
       EXPO_PUBLIC_WORKER_URL: ${{ secrets.EXPO_PUBLIC_WORKER_URL }}
-      EXPO_PUBLIC_LIVEKIT_URL: ${{ secrets.EXPO_PUBLIC_LIVEKIT_URL }}
-      EXPO_PUBLIC_LIVEKIT_API_KEY: ${{ secrets.EXPO_PUBLIC_LIVEKIT_API_KEY }}
-      EXPO_PUBLIC_LIVEKIT_API_SECRET: ${{ secrets.EXPO_PUBLIC_LIVEKIT_API_SECRET }}
-      EXPO_PUBLIC_LIVEKIT_TOKEN_SERVER_ID: ${{ secrets.EXPO_PUBLIC_LIVEKIT_TOKEN_SERVER_ID }}
 
     steps:
       - uses: actions/checkout@v4
@@ -34,12 +30,6 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
-
-      - name: Clear caches
-        run: |
-          rm -rf mobile/node_modules
-          rm -rf mobile/android
-          rm -f mobile/package-lock.json
 
       - name: Install deps
         working-directory: mobile
@@ -56,16 +46,18 @@ jobs:
         working-directory: mobile
         run: npx expo prebuild --platform android --clean
 
-      - name: Force Gradle 8.6
+      - name: Force Gradle 8.6 & Disable Proguard
         run: |
           sed -i 's/gradle-8.8-all.zip/gradle-8.6-all.zip/g' mobile/android/gradle/wrapper/gradle-wrapper.properties
+          sed -i 's/minifyEnabled true/minifyEnabled false/g' mobile/android/app/build.gradle
           echo "android.enableProguardInReleaseBuilds=false" >> mobile/android/gradle.properties
+          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m" >> mobile/android/gradle.properties
 
       - name: Configure Release Signing
         working-directory: mobile/android/app
         run: |
-          if ! grep -q "signingConfigs" build.gradle; then
-            cat >> build.gradle << 'GRADLE_EOF'
+          rm -f debug.keystore
+          cat >> build.gradle << 'GRADLE_EOF'
 
           android {
               signingConfigs {
@@ -79,13 +71,10 @@ jobs:
               buildTypes {
                   release {
                       signingConfig signingConfigs.release
-                      minifyEnabled false
                   }
               }
           }
           GRADLE_EOF
-          fi
-          rm -f debug.keystore
           keytool -genkeypair -v -storetype PKCS12 \
             -keystore debug.keystore -storepass android \
             -alias androiddebugkey -keypass android \
@@ -96,16 +85,10 @@ jobs:
         working-directory: mobile/android
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Upload & Release
+      - name: Release
         run: |
           mkdir -p artifacts
-          cp mobile/android/app/build/outputs/apk/release/app-release.apk artifacts/sqawk-v1.0.apk
-          ls -lh artifacts/
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sqawk-apk
-          path: artifacts/*.apk
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk artifacts/sqawk.apk
 
       - uses: softprops/action-gh-release@v2
         with:
