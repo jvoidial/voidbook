@@ -26,6 +26,16 @@
     ],
     "plugins": [
       [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "minSdkVersion": 24
+          }
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "sqawk uses your photos.",
@@ -37,6 +47,21 @@
         {
           "cameraPermission": "sqawk uses your camera.",
           "microphonePermission": "sqawk uses your mic.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Squawk uses photos.",
+          "cameraPermission": "Squawk uses camera."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Squawk uses camera.",
+          "microphonePermission": "Squawk uses mic.",
           "recordAudioAndroid": true
         }
       ]
