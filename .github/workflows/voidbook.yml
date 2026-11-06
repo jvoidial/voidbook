@@ -75,9 +75,6 @@ jobs:
           echo "  .env (redacted):"
           sed 's/=.*/=<set>/' .env
 
-      - name: Expo prebuild
-        working-directory: mobile
-        run: npx expo prebuild --platform android --clean
 
       - name: Configure release signing
         working-directory: mobile/android/app
