@@ -1,19 +1,19 @@
 export const theme = {
   bg:         '#000000',
-  surface:    '#16181C', // X Dark Mode surface
-  elevated:   '#273340',
+  surface:    '#111111',
+  elevated:   '#1A1A1A',
   card:       '#000000',
-  border:     '#2F3336', // X Border color
-  divider:    '#2F3336',
-  text:       '#E7E9EA', // X Off-white text
-  subText:    '#71767B', // X Gray text
-  muted:      '#71767B',
-  accent:     '#1D9BF0', // Twitter Blue
-  accentDim:  'rgba(29,155,240,0.15)',
-  danger:     '#F4212E', // X Like Red
-  dangerDim:  'rgba(244,33,46,0.15)',
-  success:    '#00BA7C', // X Retweet Green
-  warn:       '#FFD400',
+  border:     '#2A2A2A',
+  divider:    '#2A2A2A',
+  text:       '#FFFFFF',
+  subText:    '#888888',
+  muted:      '#555555',
+  accent:     '#FFFFFF',
+  accentDim:  'rgba(255,255,255,0.1)',
+  danger:     '#FF4444',
+  dangerDim:  'rgba(255,68,68,0.15)',
+  success:    '#FFFFFF',
+  warn:       '#FFFFFF',
   xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32,
   rSm: 4, rMd: 8, rLg: 16, rXl: 24, rPill: 999,
 };

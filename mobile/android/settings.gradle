@@ -44,7 +44,7 @@ if (getRNMinorVersion() >= 75) {
   }
 }
 
-rootProject.name = 'Tweeter'
+rootProject.name = 'sqawk'
 
 dependencyResolutionManagement {
   versionCatalogs {

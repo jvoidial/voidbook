@@ -11,7 +11,6 @@ export default function WatchScreen() {
       <View style={S.center}>
         <Ionicons name="videocam-off-outline" size={64} color={T.muted} />
         <Text style={{ color: T.text, fontSize: 18, fontWeight: 'bold', marginTop: 16 }}>Live is coming soon</Text>
-        <Text style={{ color: T.muted, marginTop: 8 }}>We are upgrading our streaming servers.</Text>
       </View>
     </SafeAreaView>
   );
