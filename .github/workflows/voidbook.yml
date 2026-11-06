@@ -1,4 +1,4 @@
-name: VOIDBOOK Build & Release
+name: Build sqawk
 
 on:
   push:
@@ -8,15 +8,10 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: voidbook-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   build:
-    name: Build VOIDBOOK APK
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 30
     env:
       NODE_ENV: production
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
@@ -29,54 +24,44 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
 
-      - name: Purge stale caches
-        working-directory: mobile
+      - name: Clear caches
         run: |
-          rm -rf node_modules
-          rm -f package-lock.json
-
-      - name: Free up disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk/25.* /usr/local/lib/android/sdk/ndk/26.3.* /usr/local/lib/android/sdk/ndk/27.* || true
-          sudo rm -rf /opt/ghc /opt/hostedtoolcache/CodeQL || true
-          sudo docker image prune -f || true
-          df -h
+          rm -rf mobile/node_modules
+          rm -rf mobile/android
+          rm -f mobile/package-lock.json
 
       - name: Install deps
         working-directory: mobile
         run: npm install --legacy-peer-deps --no-audit --no-fund
 
-      - name: Write .env for Metro
+      - name: Write .env
         working-directory: mobile
         run: |
-          printf 'EXPO_PUBLIC_SUPABASE_URL=%s\n' "$EXPO_PUBLIC_SUPABASE_URL" > .env
-          printf 'EXPO_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$EXPO_PUBLIC_SUPABASE_ANON_KEY" >> .env
-          printf 'EXPO_PUBLIC_WORKER_URL=%s\n' "$EXPO_PUBLIC_WORKER_URL" >> .env
-          printf 'EXPO_PUBLIC_LIVEKIT_URL=%s\n' "$EXPO_PUBLIC_LIVEKIT_URL" >> .env
-          printf 'EXPO_PUBLIC_LIVEKIT_API_KEY=%s\n' "$EXPO_PUBLIC_LIVEKIT_API_KEY" >> .env
-          printf 'EXPO_PUBLIC_LIVEKIT_API_SECRET=%s\n' "$EXPO_PUBLIC_LIVEKIT_API_SECRET" >> .env
-          printf 'EXPO_PUBLIC_LIVEKIT_TOKEN_SERVER_ID=%s\n' "$EXPO_PUBLIC_LIVEKIT_TOKEN_SERVER_ID" >> .env
-          echo "  .env (redacted):"
-          sed 's/=.*/=<set>/' .env
+          echo "EXPO_PUBLIC_SUPABASE_URL=$EXPO_PUBLIC_SUPABASE_URL" > .env
+          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=$EXPO_PUBLIC_SUPABASE_ANON_KEY" >> .env
+          echo "EXPO_PUBLIC_WORKER_URL=$EXPO_PUBLIC_WORKER_URL" >> .env
 
+      - name: Expo Prebuild
+        working-directory: mobile
+        run: npx expo prebuild --platform android --clean
 
-      - name: Configure release signing
+      - name: Force Gradle 8.6
+        run: |
+          sed -i 's/gradle-8.8-all.zip/gradle-8.6-all.zip/g' mobile/android/gradle/wrapper/gradle-wrapper.properties
+          echo "android.enableProguardInReleaseBuilds=false" >> mobile/android/gradle.properties
+
+      - name: Configure Release Signing
         working-directory: mobile/android/app
         run: |
           if ! grep -q "signingConfigs" build.gradle; then
@@ -100,73 +85,29 @@ jobs:
           }
           GRADLE_EOF
           fi
-          rm -f debug.keystore
           keytool -genkeypair -v -storetype PKCS12 \
             -keystore debug.keystore -storepass android \
             -alias androiddebugkey -keypass android \
             -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=VOIDBOOK, OU=VOID, O=VOIDIAL, L=VOID, S=VOID, C=US"
+            -dname "CN=sqawk"
 
-      - name: Metro bundle pre-check
-        working-directory: mobile
-        run: |
-          npx expo export:embed \
-            --entry-file=index.js \
-            --platform=android \
-            --dev=false \
-            --bundle-output=/tmp/precheck.bundle \
-            --assets-dest=/tmp/precheck-assets 2>&1 | tail -40
-
-      - name: Pre-install NDK and CMake
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;26.1.10909125" "cmake;3.22.1" || true
-          df -h $ANDROID_HOME
-
-      - name: Write local.properties
-        run: echo "sdk.dir=$ANDROID_HOME" > mobile/android/local.properties
-
-      - name: Wipe Gradle cache
-        run: |
-          rm -rf mobile/android/.gradle
-          rm -rf mobile/android/app/build
-          rm -rf mobile/android/build
-          rm -rf mobile/android/app/.cxx
-
-      - name: Make gradlew executable
-        run: chmod +x mobile/android/gradlew
-
-      - name: Build release APK
+      - name: Build APK
         working-directory: mobile/android
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Locate APK
-        id: locate
+      - name: Upload & Release
         run: |
-          APK=$(find mobile/android/app/build/outputs/apk/release -name "*.apk" -type f | head -1)
-          if [ -z "$APK" ]; then
-            echo "::error::No APK produced"
-            find mobile/android -name "*.apk" -type f -exec ls -lh {} \;
-            exit 1
-          fi
           mkdir -p artifacts
-          cp "$APK" "artifacts/VOIDBOOK-v1.0.${{ github.run_number }}.apk"
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk artifacts/sqawk-v1.0.apk
           ls -lh artifacts/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: voidbook-apk-${{ github.run_number }}
+          name: sqawk-apk
           path: artifacts/*.apk
-          if-no-files-found: error
-          retention-days: 90
 
-      - name: Publish release
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
-          name: VOIDBOOK v1.0.${{ github.run_number }}
-          body: |
-            Automated build #${{ github.run_number }}
-            Commit: `${{ github.sha }}`
+          name: sqawk v1.0.${{ github.run_number }}
           files: artifacts/*.apk
