@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
+import BlueCheck from './BlueCheck';
 import { theme as T } from '../theme';
 
 export default function PostCard({ post, user }) {
@@ -34,7 +35,7 @@ export default function PostCard({ post, user }) {
         <View style={S.head}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
             <Text style={S.nm} numberOfLines={1}>{user?.name || 'Unknown'}</Text>
-            {user?.verified && <Ionicons name="checkmark-circle" size={15} color={T.link} />}
+            <BlueCheck user={user} size={15} />
             <Text style={S.hd} numberOfLines={1}>@{user?.handle?.replace('@','')} · {timeLabel}</Text>
           </View>
           <TouchableOpacity>

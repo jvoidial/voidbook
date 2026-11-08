@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import PostCard from '../components/PostCard';
+import BlueCheck from '../components/BlueCheck';
 import { theme as T } from '../theme';
 
 export default function UserProfileScreen({ route, navigation }) {
@@ -55,7 +56,7 @@ export default function UserProfileScreen({ route, navigation }) {
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Text style={S.nm}>{u.name}</Text>
-                {u.verified && <Ionicons name="checkmark-circle" size={16} color={T.link} />}
+                <BlueCheck user={u} size={16} />
               </View>
               <Text style={S.hd}>@{u.handle}</Text>
               {u.bio ? <Text style={S.bio}>{u.bio}</Text> : null}

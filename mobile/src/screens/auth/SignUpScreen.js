@@ -11,11 +11,15 @@ export default function SignUpScreen({ navigation }) {
   const [handle, setHandle] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
   const [show, setShow] = useState(false);
 
   const submit = async () => {
     if (!name.trim()) return Alert.alert('Missing name', 'Please enter your display name.');
+    if (!email.trim()) return Alert.alert('Missing email', 'Please enter your email address.');
+    if (password.length < 6) return Alert.alert('Password too short', 'Use at least 6 characters.');
+    if (password !== confirm) return Alert.alert('Passwords do not match', 'Please re-enter your password.');
     setBusy(true);
     try { await signUp({ name, handle: handle || name, email, password }); }
     catch (e) { Alert.alert('Sign up failed', e.message); }
@@ -32,7 +36,7 @@ export default function SignUpScreen({ navigation }) {
 
           <View style={S.head}>
             <Text style={S.title}>Create account</Text>
-            <Text style={S.sub}>Join the void. It only takes a moment.</Text>
+            <Text style={S.sub}>Join sqawk. It only takes a moment.</Text>
           </View>
 
           <View style={S.form}>
@@ -44,7 +48,7 @@ export default function SignUpScreen({ navigation }) {
 
             <View style={S.inputWrap}>
               <Ionicons name="at-outline" size={18} color={T.muted} style={S.icon} />
-              <TextInput style={S.input} placeholder="Handle (e.g. jvoidial)" placeholderTextColor={T.muted}
+              <TextInput style={S.input} placeholder="Handle (e.g. yourname)" placeholderTextColor={T.muted}
                 autoCapitalize="none" autoCorrect={false} value={handle} onChangeText={setHandle} />
             </View>
 
@@ -62,6 +66,16 @@ export default function SignUpScreen({ navigation }) {
               <TouchableOpacity onPress={() => setShow(s => !s)} style={S.icon}>
                 <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={18} color={T.muted} />
               </TouchableOpacity>
+            </View>
+
+            <View style={S.inputWrap}>
+              <Ionicons name="lock-closed-outline" size={18} color={T.muted} style={S.icon} />
+              <TextInput style={S.input} placeholder="Confirm password" placeholderTextColor={T.muted}
+                secureTextEntry={!show} value={confirm} onChangeText={setConfirm} />
+              {confirm.length > 0 && (
+                <Ionicons name={confirm === password ? 'checkmark-circle' : 'close-circle'}
+                  size={18} color={confirm === password ? T.text : T.danger} />
+              )}
             </View>
 
             <TouchableOpacity style={[S.primary, busy && { opacity: 0.6 }]} disabled={busy} onPress={submit}>

@@ -7,20 +7,25 @@ import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import { pickImage, takePhoto, uploadMedia } from '../lib/media';
 import PostCard from '../components/PostCard';
+import BlueCheck from '../components/BlueCheck';
+import PremiumModal from '../components/PremiumModal';
 import { theme as T } from '../theme';
 
 export default function ProfileScreen() {
   const nav = useNavigation();
-  const { user, updateProfile, uploadAvatar, uploadCover } = useAuth();
+  const { user, profile: myProfile, updateProfile, uploadAvatar, uploadCover } = useAuth();
   const { state } = useApp();
   const [edit, setEdit] = useState(false);
+  const [premium, setPremium] = useState(false);
   const [tab, setTab]   = useState('posts');
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
     name: user?.name || '', handle: user?.handle || '', bio: user?.bio || ''
   });
 
-  const me = state.profiles?.[user?.id] || user || {};
+  // AuthContext.profile is refreshed after any profile write; fall back to the
+  // list row, then the auth metadata, so the header is never blank.
+  const me = myProfile || state.profiles?.[user?.id] || user || {};
   const mine = (state.posts || []).filter(p => p.userId === user?.id);
   const saved = (state.posts || []).filter(p => (state.bookmarks || []).includes(p.id));
   const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
@@ -102,7 +107,10 @@ export default function ProfileScreen() {
             </View>
 
             <View style={S.info}>
-              <Text style={S.name}>{me.name || user?.name}</Text>
+              <View style={S.nameRow}>
+                <Text style={S.name}>{me.name || user?.name}</Text>
+                <BlueCheck user={me} size={18} />
+              </View>
               <Text style={S.handle}>@{me.handle || user?.handle}</Text>
               {me.bio ? <Text style={S.bio}>{me.bio}</Text> : null}
 
@@ -114,10 +122,18 @@ export default function ProfileScreen() {
                 <View style={S.stat}><Text style={S.num}>{me.tokens ?? 100}</Text><Text style={S.lbl}>Tokens</Text></View>
               </View>
 
-              <TouchableOpacity style={S.editBtn} onPress={changeAvatar}>
-                <Ionicons name="camera-outline" size={16} color={T.bg} />
-                <Text style={S.editBtnT}>Change Photo</Text>
-              </TouchableOpacity>
+              <View style={S.btnRow}>
+                <TouchableOpacity style={S.editBtn} onPress={changeAvatar}>
+                  <Ionicons name="camera-outline" size={16} color={T.bg} />
+                  <Text style={S.editBtnT}>Change Photo</Text>
+                </TouchableOpacity>
+                {!me.is_premium && (
+                  <TouchableOpacity style={S.verifyBtn} onPress={() => setPremium(true)}>
+                    <Ionicons name="checkmark-circle-outline" size={16} color={T.text} />
+                    <Text style={S.verifyBtnT}>Get Verified</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
             <View style={S.tabs}>
@@ -155,6 +171,8 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      <PremiumModal visible={premium} onClose={() => setPremium(false)} />
     </SafeAreaView>
   );
 }
@@ -172,6 +190,7 @@ const S = StyleSheet.create({
   avatarT: { color: T.text, fontSize: 40, fontWeight: '900' },
   cameraBadge: { position: 'absolute', bottom: 4, right: 4, width: 28, height: 28, borderRadius: 14, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: T.bg },
   info: { paddingTop: 60, paddingHorizontal: 20, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: T.divider, paddingBottom: 16 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { color: T.text, fontSize: 22, fontWeight: '900' },
   handle: { color: T.muted, fontSize: 14, marginTop: 2 },
   bio: { color: T.subText, fontSize: 14, marginTop: 10, textAlign: 'center' },
@@ -180,7 +199,10 @@ const S = StyleSheet.create({
   num: { color: T.text, fontSize: 20, fontWeight: '800' },
   lbl: { color: T.muted, fontSize: 11, marginTop: 2 },
   div: { width: 1, height: 22, backgroundColor: T.divider },
-  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 18, backgroundColor: T.accent, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 22 },
+  btnRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: T.accent, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 22 },
+  verifyBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: T.link, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 22 },
+  verifyBtnT: { color: T.text, fontWeight: '800', fontSize: 13 },
   editBtnT: { color: T.bg, fontWeight: '800', fontSize: 13 },
   tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: T.divider },
   tab: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingVertical: 14 },

@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import PostCard from '../components/PostCard';
+import BlueCheck from '../components/BlueCheck';
 import { theme as T } from '../theme';
 
 // PostgREST filter syntax uses , . ( ) and % as delimiters, so strip them from
@@ -114,7 +115,7 @@ export default function SearchScreen() {
               <View style={{ flex: 1 }}>
                 <View style={S.nmRow}>
                   <Text style={S.nm} numberOfLines={1}>{item.name}</Text>
-                  {item.verified && <Ionicons name="checkmark-circle" size={15} color={T.link} />}
+                  <BlueCheck user={item} size={15} />
                 </View>
                 <Text style={S.hd} numberOfLines={1}>@{item.handle}</Text>
               </View>

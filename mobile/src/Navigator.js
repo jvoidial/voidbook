@@ -12,6 +12,7 @@ import { theme as T } from './theme';
 import WelcomeScreen from './screens/auth/WelcomeScreen';
 import SignInScreen from './screens/auth/SignInScreen';
 import SignUpScreen from './screens/auth/SignUpScreen';
+import ResetPasswordScreen from './screens/auth/ResetPasswordScreen';
 import FeedScreen from './screens/FeedScreen';
 import SearchScreen from './screens/SearchScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
@@ -22,6 +23,7 @@ import PostDetailScreen from './screens/PostDetailScreen';
 import UserProfileScreen from './screens/UserProfileScreen';
 import HashtagScreen from './screens/HashtagScreen';
 import SavedScreen from './screens/SavedScreen';
+import AdminScreen from './screens/AdminScreen';
 
 const Tab = createBottomTabNavigator();
 const RootStack = createNativeStackNavigator();
@@ -84,17 +86,29 @@ function Root() {
       <RootStack.Screen name="UserProfile" component={UserProfileScreen} />
       <RootStack.Screen name="Hashtag" component={HashtagScreen} />
       <RootStack.Screen name="Saved" component={SavedScreen} />
+      <RootStack.Screen name="Admin" component={AdminScreen} />
     </RootStack.Navigator>
   );
 }
 
 export default function Navigator() {
-  const { user, ready } = useAuth();
+  const { user, ready, recovering } = useAuth();
   if (!ready) {
     return (
       <View style={{ flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator color={T.accent} size="large" />
       </View>
+    );
+  }
+  // A recovery link signs the user in but they must set a password before
+  // they land in the app.
+  if (recovering) {
+    return (
+      <NavigationContainer theme={navTheme}>
+        <AuthStack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: T.bg } }}>
+          <AuthStack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+        </AuthStack.Navigator>
+      </NavigationContainer>
     );
   }
   return (
