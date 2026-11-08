@@ -91,17 +91,16 @@ jobs:
             -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=sqawk"
 
-      - name: Patch Gradle Wrapper
+      - name: Patch Gradle Wrapper for CI
         run: |
-          # Change from -all.zip to -bin.zip (smaller, faster download)
+          # Force the smaller -bin.zip instead of -all.zip
           sed -i 's/gradle-8.8-all.zip/gradle-8.6-bin.zip/g' mobile/android/gradle/wrapper/gradle-wrapper.properties
           sed -i 's/gradle-8.6-all.zip/gradle-8.6-bin.zip/g' mobile/android/gradle/wrapper/gradle-wrapper.properties
-          # Remove old timeouts and set a 60-second timeout
+          # Remove any existing timeout lines
           sed -i '/networkTimeout/d' mobile/android/gradle/wrapper/gradle-wrapper.properties
+          # Add a 60-second timeout
           echo "networkTimeout=60000" >> mobile/android/gradle/wrapper/gradle-wrapper.properties
-          echo "  ✓ Patched Gradle wrapper successfully"
-          echo "--- gradle-wrapper.properties ---"
-          cat mobile/android/gradle/wrapper/gradle-wrapper.properties
+          echo "✅ Patched Gradle wrapper to -bin.zip with 60s timeout."
 
       - name: Build release APK
         working-directory: mobile/android
