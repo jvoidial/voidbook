@@ -22,12 +22,24 @@ update public.profiles set verified = is_verified where verified is distinct fro
 -- is_admin. Without the guard below, any user could grant themselves the admin
 -- panel with a single API call.
 --
--- A BEFORE UPDATE trigger is the correct tool here: it sees both OLD and NEW,
--- so it can tell a harmless self-edit (bio, avatar) from a privilege change,
--- and it survives direct PostgREST calls as well as SQL.
+-- A BEFORE trigger is the correct tool: it sees both OLD and NEW, so it can
+-- tell a harmless self-edit (bio, avatar) from a privilege change, and it
+-- survives direct PostgREST calls as well as SQL.
+--
+-- It must cover INSERT as well as UPDATE. `profiles_insert_self` is
+-- `with check (auth.uid() = id)`, so a user whose row is missing can insert a
+-- replacement — and `insert ... on conflict do update` is an upsert, which
+-- reaches both paths. A guard on UPDATE alone would leave that door open.
+--
+-- `verified` is guarded too. It is the older column of the pair and the UI
+-- reads it, so leaving it out would allow self-verification through
+-- `update({ verified: true })` without touching is_verified.
 -- ═══════════════════════════════════════════════════════════════
 create or replace function public.protect_profile_privileges()
 returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  caller_is_admin boolean;
+  claims_privilege boolean;
 begin
   -- Trusted contexts: the service_role key, CI, and the SQL editor all run with
   -- no end-user identity, so `auth.uid()` is NULL. A logged-in client always
@@ -38,14 +50,25 @@ begin
     return new;
   end if;
 
-  if not exists (select 1 from public.profiles where id = auth.uid() and is_admin) then
-    -- Not an admin: these three columns must come back exactly as they were.
-    if new.is_admin is distinct from old.is_admin
-       or new.is_verified is distinct from old.is_verified
-       or new.is_premium is distinct from old.is_premium then
-      raise exception 'privilege_columns_are_read_only'
-        using hint = 'is_admin, is_verified and is_premium can only be changed by an admin or the service role.';
-    end if;
+  caller_is_admin := exists (select 1 from public.profiles where id = auth.uid() and is_admin);
+  if caller_is_admin then
+    return new;
+  end if;
+
+  if tg_op = 'INSERT' then
+    -- A new row may not arrive already privileged; the column default is false.
+    claims_privilege := coalesce(new.is_admin, false) or coalesce(new.is_verified, false)
+                     or coalesce(new.is_premium, false) or coalesce(new.verified, false);
+  else
+    claims_privilege := new.is_admin    is distinct from old.is_admin
+                     or new.is_verified is distinct from old.is_verified
+                     or new.is_premium  is distinct from old.is_premium
+                     or new.verified    is distinct from old.verified;
+  end if;
+
+  if claims_privilege then
+    raise exception 'privilege_columns_are_read_only'
+      using hint = 'is_admin, is_verified, is_premium and verified can only be changed by an admin or the service role.';
   end if;
 
   return new;
@@ -53,7 +76,7 @@ end $$;
 
 drop trigger if exists profiles_protect_privileges on public.profiles;
 create trigger profiles_protect_privileges
-  before update on public.profiles
+  before insert or update on public.profiles
   for each row execute function public.protect_profile_privileges();
 
 -- ═══════════════════════════════════════════════════════════════

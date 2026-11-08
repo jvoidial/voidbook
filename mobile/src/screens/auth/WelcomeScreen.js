@@ -11,7 +11,7 @@ export default function WelcomeScreen({ navigation }) {
         <View style={S.logoBox}>
           <Ionicons name="cube" size={56} color={T.accent} />
         </View>
-        <Text style={S.brand}>VOID<Text style={{ color: T.accent }}>BOOK</Text></Text>
+        <Text style={S.brand}>sqawk</Text>
         <Text style={S.tag}>The blackest social layer.</Text>
       </View>
 
@@ -24,7 +24,7 @@ export default function WelcomeScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <Text style={S.footer}>By continuing you agree to the VOID Terms.</Text>
+      <Text style={S.footer}>By continuing you agree to the sqawk Terms.</Text>
     </SafeAreaView>
   );
 }

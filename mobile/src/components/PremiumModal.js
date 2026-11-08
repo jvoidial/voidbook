@@ -13,7 +13,7 @@ const PERKS = [
 export default function PremiumModal({ visible, onClose }) {
   const subscribe = () => Alert.alert(
     'sqawk Premium',
-    'Payment integration coming soon.\n\nTo test now, run the SQL to set is_premium = true.'
+    'Payments are not live yet — check back soon.'
   );
 
   return (
@@ -33,7 +33,7 @@ export default function PremiumModal({ visible, onClose }) {
           <Text style={S.price}>
             $8<Text style={S.per}> / month</Text>
           </Text>
-          <Text style={S.blurb}>Get verified and stand out in the void.</Text>
+          <Text style={S.blurb}>Get verified and stand out.</Text>
 
           <ScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator={false}>
             {PERKS.map(([icon, title, body]) => (
@@ -62,8 +62,10 @@ export default function PremiumModal({ visible, onClose }) {
 
 const S = StyleSheet.create({
   bg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
+  // maxHeight keeps the CTA reachable on short screens: without it the perks
+  // list pushes the buttons below the fold on small devices.
   sheet: { backgroundColor: T.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-           padding: 24, borderTopWidth: 1, borderColor: T.border },
+           padding: 24, borderTopWidth: 1, borderColor: T.border, maxHeight: '92%' },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   badge: { width: 48, height: 48, borderRadius: 24, backgroundColor: T.linkDim,
            alignItems: 'center', justifyContent: 'center' },

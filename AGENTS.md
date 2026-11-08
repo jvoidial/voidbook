@@ -31,10 +31,23 @@ filesystem (relative -> real file, bare -> `node_modules/<pkg>` exists).
 
 - **RLS cannot restrict columns.** A policy of `using (auth.uid() = id)` lets a
   user write *every* column of their own row. Privilege columns (`is_admin`,
-  `is_verified`, `is_premium`) are therefore protected by a `BEFORE UPDATE`
-  trigger that rejects changes unless the caller is already an admin or the
-  write comes from a trusted context (`auth.uid() is null`, i.e. service role /
-  SQL editor). See `006_premium_and_admin.sql`.
+  `is_verified`, `is_premium`) are therefore protected by a `BEFORE INSERT OR
+  UPDATE` trigger that rejects changes unless the caller is already an admin or
+  the write comes from a trusted context (`auth.uid() is null`, i.e. service
+  role / SQL editor). See `006_premium_and_admin.sql`.
+  - Guard **INSERT as well as UPDATE**. `profiles_insert_self` is
+    `with check (auth.uid() = id)`, so a user whose row is missing can insert a
+    replacement, and `insert .. on conflict do update` (an upsert) reaches both
+    paths. A guard on UPDATE alone leaves those open.
+  - Guard **every** column the UI trusts. `verified` predates `is_verified` and
+    is still read by the badge; omitting it allows self-verification through
+    `update({ verified: true })`.
+- **Test trigger logic against a real Postgres, not by reading it.** The guard
+  has been exercised with `docker run postgres:16-alpine` plus a small harness
+  that recreates the `auth` schema, `auth.uid()` and the RLS policies, then runs
+  the actual migration and an attack matrix as the `authenticated` role. Run the
+  matrix against both the old and new migration: a green test proves nothing
+  unless it fails on the unfixed version.
 - Inside a `SECURITY DEFINER` function, `current_user` is the function **owner**,
   not the caller. Never use it to decide whether a caller is trusted — the test
   always passes. Use `auth.uid()`.
