@@ -7,9 +7,10 @@ import { theme as T } from '../theme';
 
 export default function FriendsScreen() {
   const { state, acceptFriend, rejectFriend } = useApp();
-  const usersById = Object.fromEntries(state.users.map(u => [u.id, u]));
-  const requests = state.friends.requests.map(r => ({ ...r, user: usersById[r.userId] }));
-  const friends = state.friends.friends.map(id => usersById[id]);
+  const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
+  const friendsState = state.friends || { friends: [], requests: [] };
+  const requests = (friendsState.requests || []).map(r => ({ ...r, user: usersById[r.userId] }));
+  const friends = (friendsState.friends || []).map(id => usersById[id]).filter(Boolean);
 
   return (
     <SafeAreaView style={S.c} edges={['top']}>

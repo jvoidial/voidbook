@@ -8,8 +8,8 @@ import { theme as T } from '../theme';
 
 export default function SavedScreen({ navigation }) {
   const { state } = useApp();
-  const usersById = Object.fromEntries(state.users.map(u => [u.id, u]));
-  const saved = state.posts.filter(p => state.bookmarks.includes(p.id));
+  const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
+  const saved = (state.posts || []).filter(p => (state.bookmarks || []).includes(p.id));
 
   return (
     <SafeAreaView style={S.c} edges={['top']}>

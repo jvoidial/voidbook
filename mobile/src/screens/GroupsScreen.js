@@ -10,7 +10,7 @@ export default function GroupsScreen() {
   return (
     <SafeAreaView style={S.c} edges={['top']}>
       <View style={S.top}><Text style={S.title}>Groups</Text></View>
-      <FlatList data={state.groups} keyExtractor={i => i.id}
+      <FlatList data={state.groups || []} keyExtractor={i => i.id}
         renderItem={({ item }) => (
           <View style={S.card}>
             <View style={S.gAv}><Ionicons name="people" size={26} color={T.accent} /></View>

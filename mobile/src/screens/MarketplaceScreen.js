@@ -9,7 +9,7 @@ export default function MarketplaceScreen() {
   const { state, addListing } = useApp();
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ title:'', price:'', desc:'' });
-  const usersById = Object.fromEntries(state.users.map(u => [u.id, u]));
+  const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
 
   const submit = () => {
     if (!form.title || !form.price) return Alert.alert('Title and price required');
@@ -28,7 +28,7 @@ export default function MarketplaceScreen() {
         </TouchableOpacity>
       </View>
 
-      <FlatList data={state.listings} keyExtractor={i => i.id} numColumns={2}
+      <FlatList data={state.listings || []} keyExtractor={i => i.id} numColumns={2}
         columnWrapperStyle={{ gap:10, paddingHorizontal:12 }}
         contentContainerStyle={{ gap:10, paddingVertical:12 }}
         renderItem={({ item }) => (

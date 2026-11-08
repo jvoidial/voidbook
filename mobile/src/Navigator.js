@@ -66,7 +66,7 @@ function MainTabs() {
     })}>
       <Tab.Screen name="Home" component={FeedScreen} />
       <Tab.Screen name="Search" component={SearchScreen} />
-      <Tab.Screen name="Notifications" component={NotificationsScreen} options={{ tabBarBadge: unreadNotifs > 0 ? unreadNotifs : undefined, tabBarBadgeStyle: { backgroundColor: T.accent, color: '#FFF' } }} />
+      <Tab.Screen name="Notifications" component={NotificationsScreen} options={{ tabBarBadge: unreadNotifs > 0 ? unreadNotifs : undefined, tabBarBadgeStyle: { backgroundColor: T.accent, color: '#000' } }} />
       <Tab.Screen name="Messages" component={MessagesScreen} options={{ tabBarBadge: unreadMsgs > 0 ? unreadMsgs : undefined, tabBarBadgeStyle: { backgroundColor: T.accent, color: '#FFF' } }} />
       
       {/* Hidden Tabs (Accessible via navigation, but not shown on bottom bar) */}

@@ -29,21 +29,40 @@ begin
   base_handle := lower(coalesce(new.raw_user_meta_data->>'handle', ''));
   base_handle := regexp_replace(base_handle, '[^a-z0-9_]', '', 'g');
   if length(base_handle) < 3 then
-    base_handle := 'user_' || substr(replace(new.id::text, '-', ''), 1, 8);
+    base_handle := 'user_' || substr(md5(new.id::text), 1, 8);
   end if;
   base_handle := left(base_handle, 30);
   final_handle := base_handle;
-  while exists (select 1 from public.profiles where handle = final_handle) loop
+
+  -- Attempt the insert without pre-checking existence: a SELECT-then-INSERT
+  -- races, and the losing writer would otherwise end up with no profile at all.
+  loop
+    insert into public.profiles (id, handle, name)
+    values (new.id, final_handle, coalesce(new.raw_user_meta_data->>'name', 'User'))
+    on conflict do nothing;
+
+    if found then
+      return new;
+    end if;
+    if exists (select 1 from public.profiles where id = new.id) then
+      return new;
+    end if;
+
     counter := counter + 1;
-    final_handle := base_handle || counter::text;
-    if counter > 10 then
-      final_handle := base_handle || '_' || substr(md5(random()::text), 1, 4);
-      exit;
+    if counter <= 10 then
+      final_handle := left(base_handle, 28) || counter::text;
+    else
+      -- Deterministic per-user fallback: md5 of the user id (plus the retry
+      -- counter) is always valid [a-z0-9_], never truncates the unique part of
+      -- the UUID, and cannot collide with another user's handle.
+      final_handle := 'user_' || substr(md5(new.id::text || counter::text), 1, 25);
+    end if;
+
+    -- Defensive bound; the UUID fallback above terminates well before this.
+    if counter > 20 then
+      return new;
     end if;
   end loop;
-  insert into public.profiles (id, handle, name)
-  values (new.id, final_handle, coalesce(new.raw_user_meta_data->>'name', 'User'));
-  return new;
 exception when others then
   raise warning 'handle_new_user failed: %', sqlerrm;
   return new;
