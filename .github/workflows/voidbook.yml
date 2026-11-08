@@ -36,6 +36,14 @@ jobs:
 
       # No dependency caching: a stale node/gradle cache was the source of the
       # corrupted native build previously, so every run installs and prebuilds fresh.
+      - name: Patch Gradle Download Timeout
+        run: |
+          sed -i 's/gradle-8.8-all.zip/gradle-8.6-bin.zip/g' mobile/android/gradle/wrapper/gradle-wrapper.properties
+          sed -i 's/gradle-8.6-all.zip/gradle-8.6-bin.zip/g' mobile/android/gradle/wrapper/gradle-wrapper.properties
+          sed -i '/networkTimeout/d' mobile/android/gradle/wrapper/gradle-wrapper.properties
+          echo "networkTimeout=60000" >> mobile/android/gradle/wrapper/gradle-wrapper.properties
+          echo "  ✓ Patched Gradle wrapper to use -bin.zip and 60s timeout"
+
       - name: Install deps
         working-directory: mobile
         run: npm install --legacy-peer-deps --no-audit --no-fund
