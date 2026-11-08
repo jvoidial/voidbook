@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import { pickImage, uploadMedia } from '../lib/media';
 import PostCard from '../components/PostCard';
 import { theme as T } from '../theme';
 
@@ -14,13 +15,29 @@ export default function FeedScreen() {
   const { user } = useAuth();
   const [modal, setModal] = useState(false);
   const [text, setText] = useState('');
+  const [asset, setAsset] = useState(null);
+  const [busy, setBusy] = useState(false);
   const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
 
-  const submit = () => {
-    if (!text.trim()) return;
-    addPost(text);
-    setText('');
-    setModal(false);
+  const closeModal = () => { setModal(false); setText(''); setAsset(null); };
+
+  const attach = async () => {
+    try {
+      const picked = await pickImage({ allowsEditing: false, quality: 0.8 });
+      if (picked) setAsset(picked);
+    } catch (e) { Alert.alert('Photo', e.message); }
+  };
+
+  const submit = async () => {
+    if (!text.trim() && !asset) return;
+    try {
+      setBusy(true);
+      let mediaUrl = null;
+      if (asset) mediaUrl = await uploadMedia(asset, 'post', user.id);
+      await addPost(text.trim(), mediaUrl, mediaUrl ? 'image' : null);
+      closeModal();
+    } catch (e) { Alert.alert('Post failed', e.message); }
+    finally { setBusy(false); }
   };
 
   return (
@@ -28,11 +45,15 @@ export default function FeedScreen() {
       {/* X-Style Header */}
       <View style={S.topBar}>
         <TouchableOpacity onPress={() => nav.navigate('Profile')}>
-          <View style={S.av}><Text style={S.avT}>{(user?.name || '?')[0].toUpperCase()}</Text></View>
+          <View style={S.av}>
+            {user?.avatar_url
+              ? <Image source={{ uri: user.avatar_url }} style={S.avImg} />
+              : <Text style={S.avT}>{(user?.name || '?')[0].toUpperCase()}</Text>}
+          </View>
         </TouchableOpacity>
-        
+
         <Ionicons name="logo-twitter" size={28} color={T.text} />
-        
+
         <TouchableOpacity onPress={() => nav.navigate('Settings')}>
           <Ionicons name="sparkles" size={24} color={T.text} />
         </TouchableOpacity>
@@ -46,32 +67,50 @@ export default function FeedScreen() {
 
       {/* Floating Action Button (Compose) */}
       <TouchableOpacity style={S.fab} onPress={() => setModal(true)}>
-        <Ionicons name="pencil" size={24} color="#FFF" />
+        <Ionicons name="pencil" size={24} color={T.bg} />
       </TouchableOpacity>
 
       {/* Compose Modal */}
       <Modal visible={modal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={[S.c, { backgroundColor: T.bg }]}>
           <View style={S.modalHeader}>
-            <TouchableOpacity onPress={() => setModal(false)}>
+            <TouchableOpacity onPress={closeModal} disabled={busy}>
               <Text style={{ color: T.text, fontSize: 16 }}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[S.postBtn, !text.trim() && { opacity: 0.5 }]} disabled={!text.trim()} onPress={submit}>
-              <Text style={S.postBtnT}>Post</Text>
+            <TouchableOpacity style={[S.postBtn, ((!text.trim() && !asset) || busy) && { opacity: 0.5 }]} disabled={(!text.trim() && !asset) || busy} onPress={submit}>
+              {busy ? <ActivityIndicator color={T.bg} size="small" /> : <Text style={S.postBtnT}>Post</Text>}
             </TouchableOpacity>
           </View>
           <View style={S.modalBody}>
-            <View style={S.av}><Text style={S.avT}>{(user?.name || '?')[0].toUpperCase()}</Text></View>
-            <TextInput 
-              style={S.modalInput} 
-              placeholder="What is happening?!" 
-              placeholderTextColor={T.muted} 
-              multiline 
-              autoFocus 
-              value={text} 
-              onChangeText={setText} 
+            <View style={S.av}>
+              {user?.avatar_url
+                ? <Image source={{ uri: user.avatar_url }} style={S.avImg} />
+                : <Text style={S.avT}>{(user?.name || '?')[0].toUpperCase()}</Text>}
+            </View>
+            <TextInput
+              style={S.modalInput}
+              placeholder="What is happening?!"
+              placeholderTextColor={T.muted}
+              multiline
+              autoFocus
+              value={text}
+              onChangeText={setText}
             />
           </View>
+
+          {asset && (
+            <View style={S.previewWrap}>
+              <Image source={{ uri: asset.uri }} style={S.preview} resizeMode="cover" />
+              <TouchableOpacity style={S.removeMedia} onPress={() => setAsset(null)}>
+                <Ionicons name="close" size={16} color={T.text} />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <TouchableOpacity style={S.mediaBtn} onPress={attach} disabled={busy}>
+            <Ionicons name="image-outline" size={22} color={T.link} />
+            <Text style={S.mediaBtnT}>Add photo</Text>
+          </TouchableOpacity>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
@@ -81,13 +120,19 @@ export default function FeedScreen() {
 const S = StyleSheet.create({
   c: { flex: 1, backgroundColor: T.bg },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: T.divider },
-  av: { width: 32, height: 32, borderRadius: 16, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' },
+  av: { width: 32, height: 32, borderRadius: 16, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avImg: { width: '100%', height: '100%' },
   avT: { color: T.text, fontWeight: 'bold', fontSize: 14 },
   fab: { position: 'absolute', bottom: 20, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 5 },
-  
+
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: T.divider },
-  postBtn: { backgroundColor: T.accent, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20 },
-  postBtnT: { color: '#FFF', fontWeight: '700', fontSize: 14 },
+  postBtn: { backgroundColor: T.accent, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, minWidth: 64, alignItems: 'center' },
+  postBtnT: { color: T.bg, fontWeight: '700', fontSize: 14 },
   modalBody: { flexDirection: 'row', padding: 16, flex: 1 },
-  modalInput: { flex: 1, color: T.text, fontSize: 18, marginLeft: 12, textAlignVertical: 'top' }
+  modalInput: { flex: 1, color: T.text, fontSize: 18, marginLeft: 12, textAlignVertical: 'top' },
+  previewWrap: { marginHorizontal: 16, marginBottom: 12 },
+  preview: { width: '100%', height: 180, borderRadius: 16, borderWidth: 1, borderColor: T.border },
+  removeMedia: { position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: T.border },
+  mediaBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: 1, borderTopColor: T.divider },
+  mediaBtnT: { color: T.link, fontSize: 15, fontWeight: '600' }
 });

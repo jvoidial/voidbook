@@ -28,10 +28,13 @@ export function AuthProvider({ children }) {
       user, session, ready, error,
       signUp: async ({ email, password, name, handle }) => {
         setError(null);
+        // Mirror the DB constraint (^[a-z0-9_]{3,30}$) so the signup trigger
+        // never has to fall back to a generated handle.
+        const cleanHandle = (handle || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 30);
         const { data, error } = await supabase.auth.signUp({
           email: email.trim().toLowerCase(),
           password,
-          options: { data: { name: name.trim(), handle: handle.trim().toLowerCase() } }
+          options: { data: { name: name.trim(), handle: cleanHandle.length >= 3 ? cleanHandle : undefined } }
         });
         if (error) { setError(error.message); throw error; }
         return data;

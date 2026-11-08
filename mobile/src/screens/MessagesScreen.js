@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Modal } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
@@ -7,17 +7,38 @@ import { useAuth } from '../context/AuthContext';
 import { theme as T } from '../theme';
 
 export default function MessagesScreen() {
-  const { state, sendMessage, createConversation } = useApp();
+  const { state, sendMessage, createConversation, markConversationRead } = useApp();
   const { user } = useAuth();
-  const me = user?.id || 'me';
+  const me = user?.id;
   const [active, setActive] = useState(null);
   const [text, setText] = useState('');
   const [newChat, setNewChat] = useState(false);
   const usersById = Object.fromEntries(state.users.map(u => [u.id, u]));
 
+  const openConversation = (id) => {
+    setActive(id);
+    if (id) markConversationRead(id);
+  };
+
+  const send = async () => {
+    const body = text.trim();
+    if (!body) return;
+    setText('');
+    try { await sendMessage(active, body); }
+    catch (e) { Alert.alert('Message failed', e.message); }
+  };
+
+  const startChat = async (otherId) => {
+    try {
+      const id = await createConversation(otherId);
+      setNewChat(false);
+      openConversation(id);
+    } catch (e) { Alert.alert('Could not start chat', e.message); }
+  };
+
   if (active) {
     const conv = state.conversations.find(c => c.id === active);
-    const other = usersById[conv.withUserId];
+    const other = usersById[conv?.withUserId];
     return (
       <SafeAreaView style={S.c} edges={['top']}>
         <View style={S.top}>
@@ -30,21 +51,21 @@ export default function MessagesScreen() {
           </View>
           <View style={{ width:26 }} />
         </View>
-        <FlatList data={conv.messages} keyExtractor={i => i.id}
+        <FlatList data={conv?.messages || []} keyExtractor={i => i.id}
           contentContainerStyle={{ padding:16, gap:8 }}
           renderItem={({ item }) => {
             const mine = item.from === me;
             return (
               <View style={[S.bubble, mine ? S.mine : S.theirs]}>
-                <Text style={[S.bubT, mine && { color: '#000' }]}>{item.text}</Text>
+                <Text style={[S.bubT, mine && { color: T.bg }]}>{item.text}</Text>
               </View>
             );
           }} />
         <View style={S.inputRow}>
           <TextInput style={S.input} placeholder="Message" placeholderTextColor={T.muted}
             value={text} onChangeText={setText} />
-          <TouchableOpacity style={S.send} onPress={() => { if (text.trim()) { sendMessage(active, text); setText(''); } }}>
-            <Ionicons name="send" size={18} color="#000" />
+          <TouchableOpacity style={S.send} onPress={send}>
+            <Ionicons name="send" size={18} color={T.bg} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -56,20 +77,24 @@ export default function MessagesScreen() {
       <View style={S.top}>
         <Text style={S.title}>Messages</Text>
         <TouchableOpacity onPress={() => setNewChat(true)}>
-          <Ionicons name="create-outline" size={24} color={T.accent} />
+          <Ionicons name="create-outline" size={24} color={T.link} />
         </TouchableOpacity>
       </View>
       <FlatList data={state.conversations} keyExtractor={i => i.id}
         renderItem={({ item }) => {
           const other = usersById[item.withUserId];
           const last = item.messages[item.messages.length - 1];
+          const unread = item.messages.filter(m => m.from !== me && !m.read).length;
           return (
-            <TouchableOpacity style={S.row} onPress={() => setActive(item.id)}>
+            <TouchableOpacity style={S.row} onPress={() => openConversation(item.id)}>
               <View style={S.av}><Text style={S.avT}>{other?.name?.[0]}</Text></View>
               <View style={{ flex:1 }}>
                 <Text style={S.nm}>{other?.name}</Text>
-                <Text style={S.hd} numberOfLines={1}>{last?.text || 'Start the conversation'}</Text>
+                <Text style={[S.hd, unread > 0 && { color: T.text, fontWeight: '600' }]} numberOfLines={1}>
+                  {last?.text || 'Start the conversation'}
+                </Text>
               </View>
+              {unread > 0 && <View style={S.badge}><Text style={S.badgeT}>{unread}</Text></View>}
               <Ionicons name="chevron-forward" size={18} color={T.muted} />
             </TouchableOpacity>
           );
@@ -88,12 +113,7 @@ export default function MessagesScreen() {
             <FlatList data={state.users.filter(u => u.id !== me)}
               keyExtractor={i => i.id}
               renderItem={({ item }) => (
-                <TouchableOpacity style={S.row} onPress={() => {
-                  createConversation(item.id);
-                  const existing = state.conversations.find(c => c.withUserId === item.id);
-                  setActive(existing?.id || null);
-                  setNewChat(false);
-                }}>
+                <TouchableOpacity style={S.row} onPress={() => startChat(item.id)}>
                   <View style={S.av}><Text style={S.avT}>{item.name[0]}</Text></View>
                   <View style={{ flex:1 }}>
                     <Text style={S.nm}>{item.name}</Text>
@@ -119,9 +139,12 @@ const S = StyleSheet.create({
   av: { width:46, height:46, borderRadius:23, backgroundColor:T.surface,
         alignItems:'center', justifyContent:'center', marginRight:12,
         borderWidth:1, borderColor:T.border },
-  avT: { color:T.accent, fontWeight:'900', fontSize:16 },
+  avT: { color:T.text, fontWeight:'900', fontSize:16 },
   nm: { color:T.text, fontWeight:'bold', fontSize:15 },
   hd: { color:T.muted, fontSize:13, marginTop:2 },
+  badge: { minWidth:22, height:22, borderRadius:11, backgroundColor:T.link,
+           alignItems:'center', justifyContent:'center', paddingHorizontal:6, marginRight:6 },
+  badgeT: { color:'#FFFFFF', fontSize:12, fontWeight:'700' },
   bubble: { padding:12, borderRadius:20, maxWidth:'78%' },
   mine: { backgroundColor:T.accent, alignSelf:'flex-end', borderBottomRightRadius:6 },
   theirs: { backgroundColor:T.surface, alignSelf:'flex-start', borderBottomLeftRadius:6 },

@@ -48,8 +48,9 @@ function AuthFlow() {
 
 function MainTabs() {
   const { state } = useApp();
+  const { user } = useAuth();
   const unreadNotifs = (state.notifications || []).filter(n => !n.read).length;
-  const unreadMsgs = (state.conversations || []).reduce((acc, c) => acc + c.messages.filter(m => m.from !== 'me' && !m.read).length, 0);
+  const unreadMsgs = (state.conversations || []).reduce((acc, c) => acc + c.messages.filter(m => m.from !== user?.id && !m.read).length, 0);
 
   return (
     <Tab.Navigator screenOptions={({ route }) => ({

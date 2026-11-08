@@ -10,6 +10,8 @@ export const theme = {
   muted:      '#555555',
   accent:     '#FFFFFF',
   accentDim:  'rgba(255,255,255,0.1)',
+  link:       '#1D9BF0',
+  linkDim:    'rgba(29,155,240,0.15)',
   danger:     '#FF4444',
   dangerDim:  'rgba(255,68,68,0.15)',
   success:    '#FFFFFF',

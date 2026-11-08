@@ -1,139 +1,223 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
 const Ctx = createContext(null);
 export const useApp = () => useContext(Ctx);
 
+// Rows come back in snake_case; the screens consume the shapes below.
+const mapComment = (c) => ({ ...c, userId: c.author_id, ts: c.created_at });
+const mapMessage = (m) => ({ ...m, from: m.sender_id, ts: m.created_at });
+const mapNotification = (n) => ({ ...n, userId: n.actor_id, type: n.kind, ts: n.created_at });
+
+const EMPTY = {
+  users: [], profiles: {}, posts: [], follows: [], bookmarks: [], myLikes: [],
+  conversations: [], notifications: [],
+  // Present for the not-yet-migrated placeholder screens (Groups, Marketplace,
+  // Friends) so they render an empty list instead of throwing.
+  groups: [], listings: [], friends: { friends: [], requests: [], suggestions: [] },
+  settings: { darkMode: true, notificationsOn: true, privateAccount: false }
+};
+
+function normalizePosts(posts, comments, likes, me) {
+  const byPost = {};
+  for (const c of comments) (byPost[c.post_id] ||= []).push(mapComment(c));
+
+  const counts = {};
+  const mine = [];
+  for (const l of likes) {
+    counts[l.post_id] = (counts[l.post_id] || 0) + 1;
+    if (l.user_id === me) mine.push(l.post_id);
+  }
+
+  return {
+    posts: posts.map(p => ({
+      ...p,
+      userId: p.author_id,
+      ts: p.created_at,
+      likes: counts[p.id] || 0,
+      comments: byPost[p.id] || []
+    })),
+    myLikes: mine
+  };
+}
+
 export function AppProvider({ children }) {
   const { user } = useAuth();
   const me = user?.id;
-  const [state, setState] = useState({
-    users: [], profiles: {}, posts: [], follows: [], bookmarks: [],
-    conversations: [], notifications: [], comments: [], likes: [], messages: []
-  });
+  const [state, setState] = useState(EMPTY);
   const [ready, setReady] = useState(false);
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   useEffect(() => {
-    if (!me) { setReady(true); return; }
+    if (!me) { setState(EMPTY); setReady(true); return; }
+    let alive = true;
     (async () => {
-      const [profiles, posts, follows, bookmarks, convos, notifs] = await Promise.all([
-        supabase.from('profiles').select('*').limit(200),
-        supabase.from('posts').select('*, author:profiles(*)').order('created_at', { ascending: false }).limit(100),
-        supabase.from('follows').select('*'),
-        supabase.from('bookmarks').select('*').eq('user_id', me),
-        supabase.from('conversations').select('*, messages(*)').or(`user_a.eq.${me},user_b.eq.${me}`),
-        supabase.from('notifications').select('*').eq('user_id', me).order('created_at', { ascending: false }).limit(50)
-      ]);
-      const giftsRes = await supabase.from('gifts').select('*').limit(200);
-      setState({
-        users: profiles.data || [],
-        profiles: Object.fromEntries((profiles.data || []).map(p => [p.id, p])),
-        posts: posts.data || [],
-        follows: follows.data || [],
-        bookmarks: (bookmarks.data || []).map(b => b.post_id),
-        conversations: (convos.data || []).map(c => ({
-          id: c.id,
-          withUserId: c.user_a === me ? c.user_b : c.user_a,
-          messages: c.messages || []
-        })),
-        notifications: notifs.data || [],
-        gifts: (giftsRes && giftsRes.data) || [],
-        comments: [], likes: [], messages: []
-      });
-      setReady(true);
+      try {
+        const [profiles, posts, follows, bookmarks, convos, notifs, comments, likes] = await Promise.all([
+          supabase.from('profiles').select('*').limit(500),
+          supabase.from('posts').select('*').order('created_at', { ascending: false }).limit(100),
+          supabase.from('follows').select('*'),
+          supabase.from('bookmarks').select('*').eq('user_id', me),
+          supabase.from('conversations').select('*, messages(*)').or(`user_a.eq.${me},user_b.eq.${me}`),
+          supabase.from('notifications').select('*').eq('user_id', me).order('created_at', { ascending: false }).limit(50),
+          supabase.from('comments').select('*').order('created_at', { ascending: true }).limit(1000),
+          supabase.from('likes').select('*')
+        ]);
+        if (!alive) return;
+
+        const profileRows = profiles.data || [];
+        const { posts: feed, myLikes } = normalizePosts(posts.data || [], comments.data || [], likes.data || [], me);
+
+        setState({
+          ...EMPTY,
+          users: profileRows,
+          profiles: Object.fromEntries(profileRows.map(p => [p.id, p])),
+          posts: feed,
+          follows: follows.data || [],
+          bookmarks: (bookmarks.data || []).map(b => b.post_id),
+          myLikes,
+          conversations: (convos.data || []).map(c => ({
+            id: c.id,
+            withUserId: c.user_a === me ? c.user_b : c.user_a,
+            messages: (c.messages || []).map(mapMessage).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+          })),
+          notifications: (notifs.data || []).map(mapNotification)
+        });
+      } catch (e) {
+        console.warn('[sqawk] initial load failed:', e?.message || e);
+      } finally {
+        if (alive) setReady(true);
+      }
     })();
+    return () => { alive = false; };
   }, [me]);
 
   useEffect(() => {
     if (!me) return;
-    const sub = supabase.channel('voidbook-rt')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' },
-        p => setState(s => ({ ...s, posts: [p.new, ...s.posts] })))
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
-        p => setState(s => ({ ...s, conversations: s.conversations.map(c =>
-          c.id === p.new.conversation_id ? { ...c, messages: [...c.messages, p.new] } : c) })))
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' },
-        p => setState(s => ({ ...s, notifications: [p.new, ...s.notifications] })))
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'gifts' },
-        p => setState(s => ({ ...s, gifts: [p.new, ...(s.gifts || [])] })))
+    const sub = supabase.channel('sqawk-rt')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, ({ new: p }) =>
+        setState(s => s.posts.some(x => x.id === p.id) ? s : {
+          ...s,
+          posts: [{ ...p, userId: p.author_id, ts: p.created_at, likes: 0, comments: [] }, ...s.posts]
+        }))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts' }, ({ new: p }) =>
+        setState(s => ({ ...s, posts: s.posts.map(x => x.id === p.id ? { ...x, ...p, userId: p.author_id, ts: p.created_at } : x) })))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, ({ new: c }) =>
+        setState(s => ({ ...s, posts: s.posts.map(p => p.id === c.post_id
+          ? { ...p, comments: p.comments.some(x => x.id === c.id) ? p.comments : [...p.comments, mapComment(c)] }
+          : p) })))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, ({ new: m }) =>
+        setState(s => ({ ...s, conversations: s.conversations.map(c => c.id === m.conversation_id
+          ? { ...c, messages: c.messages.some(x => x.id === m.id) ? c.messages : [...c.messages, mapMessage(m)] }
+          : c) })))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, ({ new: n }) =>
+        setState(s => s.notifications.some(x => x.id === n.id) ? s : {
+          ...s, notifications: [mapNotification(n), ...s.notifications]
+        }))
       .subscribe();
-    return () => supabase.removeChannel(sub);
+    return () => { supabase.removeChannel(sub); };
   }, [me]);
+
+  const patchPost = (id, patch) =>
+    setState(s => ({ ...s, posts: s.posts.map(p => p.id === id ? { ...p, ...patch } : p) }));
 
   const api = {
     state, ready,
 
     addPost: async (content, mediaUrl, mediaType) => {
       const { data, error } = await supabase.from('posts')
-        .insert({ content, author_id: me, media_url: mediaUrl || null, media_type: mediaType || null })
-        .select('*, author:profiles(*)').single();
+        .insert({ content: content || '', author_id: me, media_url: mediaUrl || null, media_type: mediaType || null })
+        .select('*').single();
       if (error) throw error;
-      setState(s => ({ ...s, posts: [data, ...s.posts] }));
+      setState(s => s.posts.some(p => p.id === data.id) ? s : {
+        ...s, posts: [{ ...data, userId: data.author_id, ts: data.created_at, likes: 0, comments: [] }, ...s.posts]
+      });
     },
 
     deletePost: async (id) => {
-      await supabase.from('posts').update({ deleted_at: new Date().toISOString() }).eq('id', id);
       setState(s => ({ ...s, posts: s.posts.filter(p => p.id !== id) }));
+      const { error } = await supabase.from('posts')
+        .update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      if (error) console.warn('[sqawk] deletePost:', error.message);
     },
 
     editPost: async (id, content) => {
-      await supabase.from('posts').update({ content, edited_at: new Date().toISOString() }).eq('id', id);
-      setState(s => ({ ...s, posts: s.posts.map(p => p.id === id ? { ...p, content } : p) }));
+      const edited_at = new Date().toISOString();
+      patchPost(id, { content, edited_at });
+      const { error } = await supabase.from('posts').update({ content, edited_at }).eq('id', id);
+      if (error) console.warn('[sqawk] editPost:', error.message);
     },
 
+    // Optimistic toggle: like/unlike backed by the `likes` join table.
     likePost: async (id) => {
-      setState(s => ({ ...s, posts: s.posts.map(p => p.id === id ? { ...p, likes: (p.likes||0)+1 } : p) }));
-      const { error } = await supabase.from('likes').insert({ post_id: id, user_id: me });
+      const liked = stateRef.current.myLikes.includes(id);
+      setState(s => ({
+        ...s,
+        myLikes: liked ? s.myLikes.filter(x => x !== id) : [id, ...s.myLikes],
+        posts: s.posts.map(p => p.id === id ? { ...p, likes: Math.max(0, (p.likes || 0) + (liked ? -1 : 1)) } : p)
+      }));
+      const { error } = liked
+        ? await supabase.from('likes').delete().eq('user_id', me).eq('post_id', id)
+        : await supabase.from('likes').insert({ post_id: id, user_id: me });
       if (error) {
-        setState(s => ({ ...s, posts: s.posts.map(p => p.id === id ? { ...p, likes: Math.max(0,(p.likes||0)-1) } : p) }));
+        setState(s => ({
+          ...s,
+          myLikes: liked ? [id, ...s.myLikes] : s.myLikes.filter(x => x !== id),
+          posts: s.posts.map(p => p.id === id ? { ...p, likes: Math.max(0, (p.likes || 0) + (liked ? 1 : -1)) } : p)
+        }));
       }
     },
 
     sharePost: async (id) => {
-      const cur = state.posts.find(p => p.id === id);
-      await supabase.from('posts').update({ shares: (cur?.shares || 0) + 1 }).eq('id', id);
-      setState(s => ({ ...s, posts: s.posts.map(p => p.id === id ? { ...p, shares: (p.shares||0)+1 } : p) }));
+      const cur = stateRef.current.posts.find(p => p.id === id);
+      const shares = (cur?.shares || 0) + 1;
+      patchPost(id, { shares });
+      const { error } = await supabase.from('posts').update({ shares }).eq('id', id);
+      if (error) console.warn('[sqawk] sharePost:', error.message);
     },
 
     addComment: async (id, text) => {
       const { data, error } = await supabase.from('comments')
         .insert({ post_id: id, author_id: me, text })
-        .select('*, author:profiles(*)').single();
+        .select('*').single();
       if (error) throw error;
-      setState(s => ({ ...s, posts: s.posts.map(p =>
-        p.id === id ? { ...p, comments: [...(p.comments || []), data] } : p) }));
+      setState(s => ({ ...s, posts: s.posts.map(p => p.id === id
+        ? { ...p, comments: p.comments.some(x => x.id === data.id) ? p.comments : [...p.comments, mapComment(data)] }
+        : p) }));
     },
 
     toggleBookmark: async (postId) => {
-      const has = state.bookmarks.includes(postId);
-      if (has) {
-        await supabase.from('bookmarks').delete().eq('user_id', me).eq('post_id', postId);
-        setState(s => ({ ...s, bookmarks: s.bookmarks.filter(b => b !== postId) }));
-      } else {
-        await supabase.from('bookmarks').insert({ user_id: me, post_id: postId });
-        setState(s => ({ ...s, bookmarks: [postId, ...s.bookmarks] }));
+      const has = stateRef.current.bookmarks.includes(postId);
+      setState(s => ({ ...s, bookmarks: has ? s.bookmarks.filter(b => b !== postId) : [postId, ...s.bookmarks] }));
+      const { error } = has
+        ? await supabase.from('bookmarks').delete().eq('user_id', me).eq('post_id', postId)
+        : await supabase.from('bookmarks').insert({ user_id: me, post_id: postId });
+      if (error) {
+        setState(s => ({ ...s, bookmarks: has ? [postId, ...s.bookmarks] : s.bookmarks.filter(b => b !== postId) }));
       }
     },
 
     toggleFollow: async (userId) => {
-      const f = state.follows.some(x => x.follower_id === me && x.followee_id === userId);
-      if (f) {
-        await supabase.from('follows').delete().eq('follower_id', me).eq('followee_id', userId);
-        setState(s => ({ ...s, follows: s.follows.filter(x => !(x.follower_id === me && x.followee_id === userId)) }));
-      } else {
-        await supabase.from('follows').insert({ follower_id: me, followee_id: userId });
-        setState(s => ({ ...s, follows: [...s.follows, { follower_id: me, followee_id: userId }] }));
-      }
+      const following = stateRef.current.follows.some(x => x.follower_id === me && x.followee_id === userId);
+      setState(s => ({ ...s, follows: following
+        ? s.follows.filter(x => !(x.follower_id === me && x.followee_id === userId))
+        : [...s.follows, { follower_id: me, followee_id: userId }] }));
+      const { error } = following
+        ? await supabase.from('follows').delete().eq('follower_id', me).eq('followee_id', userId)
+        : await supabase.from('follows').insert({ follower_id: me, followee_id: userId });
+      if (error) console.warn('[sqawk] toggleFollow:', error.message);
     },
 
     sendMessage: async (convId, text) => {
       const { data, error } = await supabase.from('messages')
         .insert({ conversation_id: convId, sender_id: me, text })
-        .select().single();
+        .select('*').single();
       if (error) throw error;
-      setState(s => ({ ...s, conversations: s.conversations.map(c =>
-        c.id === convId ? { ...c, messages: [...c.messages, data] } : c) }));
+      setState(s => ({ ...s, conversations: s.conversations.map(c => c.id === convId
+        ? { ...c, messages: c.messages.some(x => x.id === data.id) ? c.messages : [...c.messages, mapMessage(data)] }
+        : c) }));
     },
 
     createConversation: async (otherId) => {
@@ -142,7 +226,7 @@ export function AppProvider({ children }) {
         .upsert({ user_a: a, user_b: b }, { onConflict: 'user_a,user_b' })
         .select().single();
       if (error) throw error;
-      if (!state.conversations.some(c => c.id === data.id)) {
+      if (!stateRef.current.conversations.some(c => c.id === data.id)) {
         setState(s => ({ ...s, conversations: [
           { id: data.id, withUserId: otherId, messages: [] }, ...s.conversations] }));
       }
@@ -150,37 +234,27 @@ export function AppProvider({ children }) {
     },
 
     markConversationRead: async (convId) => {
-      await supabase.from('messages').update({ read: true })
-        .eq('conversation_id', convId).neq('sender_id', me);
       setState(s => ({ ...s, conversations: s.conversations.map(c =>
         c.id === convId ? { ...c, messages: c.messages.map(m => ({ ...m, read: true })) } : c) }));
+      await supabase.from('messages').update({ read: true })
+        .eq('conversation_id', convId).neq('sender_id', me);
     },
 
     markNotificationRead: async (id) => {
-      await supabase.from('notifications').update({ read: true }).eq('id', id);
       setState(s => ({ ...s, notifications: s.notifications.map(n => n.id === id ? { ...n, read: true } : n) }));
+      await supabase.from('notifications').update({ read: true }).eq('id', id);
     },
 
     clearNotifications: async () => {
-      await supabase.from('notifications').delete().eq('user_id', me);
       setState(s => ({ ...s, notifications: [] }));
+      await supabase.from('notifications').delete().eq('user_id', me);
     },
 
-    sendGift: async (recipientId, postId, amount, emoji = '🖤', message = null) => {
-      const { data, error } = await supabase.from('gifts').insert({
-        sender_id: me, recipient_id: recipientId, post_id: postId, amount, emoji, message
-      }).select().single();
-      if (error) throw error;
-      setState(s => ({ ...s, gifts: [data, ...(s.gifts || [])],
-        profiles: { ...s.profiles, [me]: { ...s.profiles[me], tokens: Math.max(0, (s.profiles[me]?.tokens || 0) - amount) } } }));
-      return data;
-    },
+    updateSettings: (patch) => setState(s => ({ ...s, settings: { ...s.settings, ...patch } })),
 
-    // Placeholders — keep signatures so existing screens don't crash
+    // Not part of the current schema; kept so existing screens don't crash.
     toggleGroup: () => {}, acceptFriend: () => {}, rejectFriend: () => {},
-    addListing: () => {}, goLive: () => {}, bumpLiveViewers: () => {},
-    endLive: () => {}, updateSettings: () => {}, saveDraft: () => {},
-    deleteDraft: () => {}, reportItem: () => {}
+    addListing: () => {}, reportItem: () => {}
   };
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;

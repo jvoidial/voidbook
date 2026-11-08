@@ -10,8 +10,11 @@ create table profiles (
   handle      text unique not null check (handle ~ '^[a-z0-9_]{3,30}$'),
   name        text not null,
   bio         text default '',
+  avatar_url  text,
+  cover_url   text,
   followers   int default 0,
   following   int default 0,
+  tokens      int default 100,
   verified    boolean default false,
   created_at  timestamptz default now()
 );
@@ -20,27 +23,53 @@ create policy "profiles_read_all"    on profiles for select using (true);
 create policy "profiles_update_self" on profiles for update using (auth.uid() = id);
 create policy "profiles_insert_self" on profiles for insert with check (auth.uid() = id);
 
--- Auto-create profile on signup
-create or replace function handle_new_user()
-returns trigger language plpgsql security definer as $$
+-- Auto-create profile on signup.
+-- Duplicate-safe: a handle collision retries with a numeric suffix, then a random
+-- suffix, so a duplicate handle can never abort the auth.users insert (which the
+-- GoTrue signup endpoint surfaces as `500 unexpected_failure`). Any other error is
+-- swallowed with a warning so signup still succeeds.
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  base_handle text;
+  final_handle text;
+  counter int := 0;
 begin
-  insert into profiles (id, handle, name)
-  values (
-    new.id,
-    coalesce(new.raw_user_meta_data->>'handle', 'user_' || substr(new.id::text, 1, 8)),
-    coalesce(new.raw_user_meta_data->>'name', 'User')
-  );
+  -- Sanitize so the value always satisfies the profiles.handle check constraint;
+  -- an invalid handle must never abort signup.
+  base_handle := lower(coalesce(new.raw_user_meta_data->>'handle', ''));
+  base_handle := regexp_replace(base_handle, '[^a-z0-9_]', '', 'g');
+  if length(base_handle) < 3 then
+    base_handle := 'user_' || substr(replace(new.id::text, '-', ''), 1, 8);
+  end if;
+  base_handle := left(base_handle, 30);
+  final_handle := base_handle;
+  while exists (select 1 from public.profiles where handle = final_handle) loop
+    counter := counter + 1;
+    final_handle := base_handle || counter::text;
+    if counter > 10 then
+      final_handle := base_handle || '_' || substr(md5(random()::text), 1, 4);
+      exit;
+    end if;
+  end loop;
+  insert into public.profiles (id, handle, name)
+  values (new.id, final_handle, coalesce(new.raw_user_meta_data->>'name', 'User'));
+  return new;
+exception when others then
+  raise warning 'handle_new_user failed: %', sqlerrm;
   return new;
 end $$;
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
-  after insert on auth.users for each row execute function handle_new_user();
+  after insert on auth.users for each row execute function public.handle_new_user();
 
 -- ── POSTS ────────────────────────────────────────────────────
 create table posts (
   id          uuid primary key default uuid_generate_v4(),
   author_id   uuid not null references profiles(id) on delete cascade,
-  content     text not null check (char_length(content) between 1 and 5000),
+  content     text not null default '' check (char_length(content) <= 5000),
+  media_url   text,
+  media_type  text,
   audience    text default 'public' check (audience in ('public','followers','private')),
   likes       int default 0,
   shares      int default 0,
@@ -154,9 +183,45 @@ alter table notifications enable row level security;
 create policy "notif_own" on notifications for all using (auth.uid() = user_id);
 
 -- ── REALTIME ─────────────────────────────────────────────────
-alter publication supabase_realtime add table posts;
-alter publication supabase_realtime add table messages;
-alter publication supabase_realtime add table notifications;
+-- Idempotent: re-running must not error if the table is already published.
+do $$
+declare t text;
+begin
+  foreach t in array array['posts', 'comments', 'messages', 'notifications']
+  loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
+
+-- ── STORAGE BUCKETS ──────────────────────────────────────────
+-- Public read; writes are confined to the uploader's own folder
+-- (`<user_id>/<file>`), matching mobile/src/lib/media.js.
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', true), ('covers', 'covers', true), ('posts', 'posts', true)
+on conflict (id) do update set public = excluded.public;
+
+create policy "media_public_read" on storage.objects
+  for select using (bucket_id in ('avatars', 'covers', 'posts'));
+create policy "media_owner_insert" on storage.objects
+  for insert with check (
+    bucket_id in ('avatars', 'covers', 'posts')
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+create policy "media_owner_update" on storage.objects
+  for update using (
+    bucket_id in ('avatars', 'covers', 'posts')
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+create policy "media_owner_delete" on storage.objects
+  for delete using (
+    bucket_id in ('avatars', 'covers', 'posts')
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
 
 -- ═══════════════════════════════════════════════════════════════
 -- Done. Every table has RLS. Every policy is auth.uid() scoped.
