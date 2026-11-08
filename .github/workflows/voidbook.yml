@@ -54,11 +54,11 @@ jobs:
       - name: Pin Gradle 8.6, disable Proguard, tune JVM
         run: |
           WRAPPER=mobile/android/gradle/wrapper/gradle-wrapper.properties
-          if grep -q 'gradle-8.8-all.zip' "$WRAPPER"; then
-            sed -i 's/gradle-8.8-all.zip/gradle-8.6-all.zip/g' "$WRAPPER"
+          if grep -q 'gradle-8.6-bin.zip' "$WRAPPER"; then
+            sed -i 's/gradle-8.6-bin.zip/gradle-8.6-bin.zip/g' "$WRAPPER"
           fi
           # Expo 51 targets Gradle 8.6; fail loudly if the wrapper is unexpected.
-          grep -q 'gradle-8.6-all.zip' "$WRAPPER" || { echo "Unexpected Gradle wrapper:"; cat "$WRAPPER"; exit 1; }
+          grep -q 'gradle-8.6-bin.zip' "$WRAPPER" || { echo "Unexpected Gradle wrapper:"; cat "$WRAPPER"; exit 1; }
           sed -i 's/minifyEnabled true/minifyEnabled false/g' mobile/android/app/build.gradle
           {
             echo 'android.enableProguardInReleaseBuilds=false'
