@@ -36,14 +36,6 @@ jobs:
 
       # No dependency caching: a stale node/gradle cache was the source of the
       # corrupted native build previously, so every run installs and prebuilds fresh.
-      - name: Patch Gradle Download Timeout
-        run: |
-          sed -i 's/gradle-8.8-all.zip/gradle-8.6-bin.zip/g' mobile/android/gradle/wrapper/gradle-wrapper.properties
-          sed -i 's/gradle-8.6-all.zip/gradle-8.6-bin.zip/g' mobile/android/gradle/wrapper/gradle-wrapper.properties
-          sed -i '/networkTimeout/d' mobile/android/gradle/wrapper/gradle-wrapper.properties
-          echo "networkTimeout=60000" >> mobile/android/gradle/wrapper/gradle-wrapper.properties
-          echo "  ✓ Patched Gradle wrapper to use -bin.zip and 60s timeout"
-
       - name: Install deps
         working-directory: mobile
         run: npm install --legacy-peer-deps --no-audit --no-fund
@@ -59,18 +51,14 @@ jobs:
         working-directory: mobile
         run: npx expo prebuild --platform android --clean
 
-      - name: Pin Gradle 8.6, disable Proguard, tune JVM
+      - name: Disable Proguard, tune JVM
         run: |
-          WRAPPER=mobile/android/gradle/wrapper/gradle-wrapper.properties
-          if grep -q 'gradle-8.6-bin.zip' "$WRAPPER"; then
-            sed -i 's/gradle-8.6-bin.zip/gradle-8.6-bin.zip/g' "$WRAPPER"
-          fi
-          # Expo 51 targets Gradle 8.6; fail loudly if the wrapper is unexpected.
-          grep -q 'gradle-8.6-bin.zip' "$WRAPPER" || { echo "Unexpected Gradle wrapper:"; cat "$WRAPPER"; exit 1; }
           sed -i 's/minifyEnabled true/minifyEnabled false/g' mobile/android/app/build.gradle
           {
             echo 'android.enableProguardInReleaseBuilds=false'
             echo 'org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m'
+            echo 'systemProp.org.gradle.internal.http.connectionTimeout=120000'
+            echo 'systemProp.org.gradle.internal.http.socketTimeout=120000'
           } >> mobile/android/gradle.properties
 
       - name: Configure release signing
@@ -102,6 +90,16 @@ jobs:
             -alias androiddebugkey -keypass android \
             -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=sqawk"
+
+      - name: Use gradle -bin distribution and raise network timeout
+        run: |
+          WRAPPER=mobile/android/gradle/wrapper/gradle-wrapper.properties
+          sed -i 's/gradle-8.8-all.zip/gradle-8.6-bin.zip/g' "$WRAPPER"
+          sed -i 's/gradle-8.6-all.zip/gradle-8.6-bin.zip/g' "$WRAPPER"
+          sed -i '/^networkTimeout=/d' "$WRAPPER"
+          echo 'networkTimeout=60000' >> "$WRAPPER"
+          echo "--- $WRAPPER ---"
+          cat "$WRAPPER"
 
       - name: Build release APK
         working-directory: mobile/android
