@@ -7,7 +7,7 @@ import { theme as T } from '../theme';
 
 export default function NotificationsScreen() {
   const { state, clearNotifications, markNotificationRead } = useApp();
-  const usersById = Object.fromEntries(state.users.map(u => [u.id, u]));
+  const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
   const icons = { like:'heart', comment:'chatbubble', follow:'person-add', friend_request:'person-add', share:'repeat', mention:'at' };
   const label = n => ({ like:'liked your post', comment:'replied to your post',
     follow:'followed you', friend_request:'sent you a friend request',
@@ -17,13 +17,13 @@ export default function NotificationsScreen() {
     <SafeAreaView style={S.c} edges={['top']}>
       <View style={S.top}>
         <Text style={S.title}>Notifications</Text>
-        {state.notifications.length > 0 && (
+        {(state.notifications || []).length > 0 && (
           <TouchableOpacity onPress={clearNotifications}>
             <Ionicons name="checkmark-done" size={22} color={T.link} />
           </TouchableOpacity>
         )}
       </View>
-      <FlatList data={state.notifications} keyExtractor={i => i.id}
+      <FlatList data={state.notifications || []} keyExtractor={i => i.id}
         renderItem={({ item }) => {
           const u = usersById[item.userId];
           return (

@@ -11,10 +11,13 @@ export default function UserProfileScreen({ route, navigation }) {
   const { userId } = route.params;
   const { user: me } = useAuth();
   const { state, toggleFollow, createConversation, reportItem } = useApp();
-  const u = state.users.find(x => x.id === userId) || { name: 'Unknown', handle: '@unknown', followers: 0, following: 0, bio: '' };
-  const usersById = Object.fromEntries(state.users.map(x => [x.id, x]));
-  const posts = state.posts.filter(p => p.userId === userId);
-  const isFollowing = state.follows.some(f => f.follower_id === me?.id && f.followee_id === userId);
+  const u = (state.users || []).find(x => x.id === userId) || { name: 'Unknown', handle: 'unknown', bio: '' };
+  const usersById = Object.fromEntries((state.users || []).map(x => [x.id, x]));
+  const posts = (state.posts || []).filter(p => p.userId === userId);
+  const follows = state.follows || [];
+  const followerCount = follows.filter(f => f.followee_id === userId).length;
+  const followingCount = follows.filter(f => f.follower_id === userId).length;
+  const isFollowing = follows.some(f => f.follower_id === me?.id && f.followee_id === userId);
   const isSelf = me?.id === userId;
 
   const message = async () => {
@@ -54,12 +57,12 @@ export default function UserProfileScreen({ route, navigation }) {
                 <Text style={S.nm}>{u.name}</Text>
                 {u.verified && <Ionicons name="checkmark-circle" size={16} color={T.link} />}
               </View>
-              <Text style={S.hd}>{u.handle}</Text>
+              <Text style={S.hd}>@{u.handle}</Text>
               {u.bio ? <Text style={S.bio}>{u.bio}</Text> : null}
               <View style={S.stats}>
-                <View style={S.stat}><Text style={S.num}>{u.followers || 0}</Text><Text style={S.lbl}>Followers</Text></View>
+                <View style={S.stat}><Text style={S.num}>{followerCount}</Text><Text style={S.lbl}>Followers</Text></View>
                 <View style={S.div} />
-                <View style={S.stat}><Text style={S.num}>{u.following || 0}</Text><Text style={S.lbl}>Following</Text></View>
+                <View style={S.stat}><Text style={S.num}>{followingCount}</Text><Text style={S.lbl}>Following</Text></View>
                 <View style={S.div} />
                 <View style={S.stat}><Text style={S.num}>{posts.length}</Text><Text style={S.lbl}>Posts</Text></View>
               </View>

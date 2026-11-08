@@ -21,11 +21,11 @@ export default function ProfileScreen() {
   });
 
   const me = state.profiles?.[user?.id] || user || {};
-  const mine = state.posts.filter(p => p.userId === user?.id);
-  const saved = state.posts.filter(p => state.bookmarks.includes(p.id));
+  const mine = (state.posts || []).filter(p => p.userId === user?.id);
+  const saved = (state.posts || []).filter(p => (state.bookmarks || []).includes(p.id));
   const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
-  const followerCount = state.follows.filter(f => f.followee_id === user?.id).length;
-  const followingCount = state.follows.filter(f => f.follower_id === user?.id).length;
+  const followerCount = (state.follows || []).filter(f => f.followee_id === user?.id).length;
+  const followingCount = (state.follows || []).filter(f => f.follower_id === user?.id).length;
 
   const changeAvatar = async () => {
     const run = async (picker) => {
@@ -67,12 +67,12 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={S.c} edges={['top']}>
       <View style={S.topBar}>
-        <Text style={S.topTitle}>{user?.name}</Text>
+        <Text style={S.topTitle}>{me.name || user?.name}</Text>
         <View style={{ flexDirection: 'row', gap: 14 }}>
           <TouchableOpacity onPress={() => nav.push('Saved')}>
             <Ionicons name="bookmark-outline" size={22} color={T.text} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => { setForm({ name: user?.name||'', handle: user?.handle||'', bio: user?.bio||'' }); setEdit(true); }}>
+          <TouchableOpacity onPress={() => { setForm({ name: me.name || '', handle: me.handle || '', bio: me.bio || '' }); setEdit(true); }}>
             <Ionicons name="create-outline" size={22} color={T.text} />
           </TouchableOpacity>
         </View>
@@ -92,7 +92,7 @@ export default function ProfileScreen() {
                 <View style={S.avatar}>
                   {me.avatar_url
                     ? <Image source={{ uri: me.avatar_url }} style={S.avatarImg} />
-                    : <Text style={S.avatarT}>{(user?.name || '?')[0].toUpperCase()}</Text>}
+                    : <Text style={S.avatarT}>{(me.name || user?.name || '?')[0].toUpperCase()}</Text>}
                   {busy && <ActivityIndicator color={T.link} style={StyleSheet.absoluteFill} />}
                 </View>
                 <View style={S.cameraBadge}>
@@ -102,9 +102,9 @@ export default function ProfileScreen() {
             </View>
 
             <View style={S.info}>
-              <Text style={S.name}>{user?.name}</Text>
-              <Text style={S.handle}>{user?.handle}</Text>
-              {user?.bio ? <Text style={S.bio}>{user.bio}</Text> : null}
+              <Text style={S.name}>{me.name || user?.name}</Text>
+              <Text style={S.handle}>@{me.handle || user?.handle}</Text>
+              {me.bio ? <Text style={S.bio}>{me.bio}</Text> : null}
 
               <View style={S.stats}>
                 <View style={S.stat}><Text style={S.num}>{followerCount}</Text><Text style={S.lbl}>Followers</Text></View>

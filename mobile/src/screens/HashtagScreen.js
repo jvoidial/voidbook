@@ -9,8 +9,8 @@ import { theme as T } from '../theme';
 export default function HashtagScreen({ route, navigation }) {
   const { tag } = route.params;
   const { state } = useApp();
-  const usersById = Object.fromEntries(state.users.map(u => [u.id, u]));
-  const posts = state.posts.filter(p => (p.content || '').toLowerCase().includes(tag.toLowerCase()));
+  const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
+  const posts = (state.posts || []).filter(p => (p.content || '').toLowerCase().includes(tag.toLowerCase()));
 
   return (
     <SafeAreaView style={S.c} edges={['top']}>

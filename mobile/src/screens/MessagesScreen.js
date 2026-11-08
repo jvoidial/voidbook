@@ -13,7 +13,7 @@ export default function MessagesScreen() {
   const [active, setActive] = useState(null);
   const [text, setText] = useState('');
   const [newChat, setNewChat] = useState(false);
-  const usersById = Object.fromEntries(state.users.map(u => [u.id, u]));
+  const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
 
   const openConversation = (id) => {
     setActive(id);
@@ -37,7 +37,7 @@ export default function MessagesScreen() {
   };
 
   if (active) {
-    const conv = state.conversations.find(c => c.id === active);
+    const conv = (state.conversations || []).find(c => c.id === active);
     const other = usersById[conv?.withUserId];
     return (
       <SafeAreaView style={S.c} edges={['top']}>
@@ -80,7 +80,7 @@ export default function MessagesScreen() {
           <Ionicons name="create-outline" size={24} color={T.link} />
         </TouchableOpacity>
       </View>
-      <FlatList data={state.conversations} keyExtractor={i => i.id}
+      <FlatList data={state.conversations || []} keyExtractor={i => i.id}
         renderItem={({ item }) => {
           const other = usersById[item.withUserId];
           const last = item.messages[item.messages.length - 1];
@@ -110,7 +110,7 @@ export default function MessagesScreen() {
                 <Ionicons name="close" size={24} color={T.text} />
               </TouchableOpacity>
             </View>
-            <FlatList data={state.users.filter(u => u.id !== me)}
+            <FlatList data={(state.users || []).filter(u => u.id !== me)}
               keyExtractor={i => i.id}
               renderItem={({ item }) => (
                 <TouchableOpacity style={S.row} onPress={() => startChat(item.id)}>

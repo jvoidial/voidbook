@@ -1,18 +1,32 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import { theme as T } from '../theme';
 
 export default function PostDetailScreen({ route, navigation }) {
   const { postId } = route.params;
-  const { state, addComment, likePost, sharePost, deletePost, toggleBookmark } = useApp();
+  const { state, addComment, likePost, sharePost, deletePost, toggleBookmark, ingestComment } = useApp();
   const { user: me } = useAuth();
   const [text, setText] = useState('');
-  const post = state.posts.find(p => p.id === postId);
-  const usersById = Object.fromEntries(state.users.map(u => [u.id, u]));
+  const post = (state.posts || []).find(p => p.id === postId);
+  const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
+
+  // Post-scoped Realtime so replies from other users appear without a refresh.
+  // ingestComment is idempotent, so this does not duplicate the global stream.
+  const ingest = useRef(ingestComment);
+  ingest.current = ingestComment;
+  useEffect(() => {
+    const ch = supabase.channel(`comments-${postId}`)
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'comments', filter: `post_id=eq.${postId}` },
+        ({ new: c }) => ingest.current(c))
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [postId]);
 
   if (!post) {
     return (
@@ -30,14 +44,20 @@ export default function PostDetailScreen({ route, navigation }) {
   }
 
   const author = usersById[post.userId] || { name: 'You', handle: '@you' };
-  const bookmarked = state.bookmarks.includes(post.id);
-  const liked = state.myLikes.includes(post.id);
+  const bookmarked = (state.bookmarks || []).includes(post.id);
+  const liked = (state.myLikes || []).includes(post.id);
   const renderContent = (c) => (c || '').split(/(\s+)/).map((part, i) => {
     if (part.startsWith('#') || part.startsWith('@')) return <Text key={i} style={{ color: T.link, fontWeight: '600' }}>{part}</Text>;
     return part;
   });
 
-  const submit = () => { if (!text.trim()) return; addComment(post.id, text); setText(''); };
+  const submit = async () => {
+    const body = text.trim();
+    if (!body) return;
+    setText('');
+    try { await addComment(post.id, body); }
+    catch (e) { Alert.alert('Could not post comment', e.message); }
+  };
 
   return (
     <SafeAreaView style={S.c} edges={['top']}>

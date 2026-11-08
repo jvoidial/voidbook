@@ -1,24 +1,31 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Switch, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
-import { useApp } from '../context/AppContext';
 import { theme as T } from '../theme';
 
 export default function SettingsScreen() {
+  const nav = useNavigation();
   const { signOut } = useAuth();
-  const { state, updateSettings } = useApp();
-  const s = state.settings || {};
 
-  const Row = ({ icon, label, value, onToggle, onPress, danger }) => (
-    <TouchableOpacity style={S.item} onPress={onPress} disabled={!onPress && !onToggle}>
+  const confirmSignOut = () => Alert.alert('Sign Out?', 'You can sign back in any time.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Sign Out', style: 'destructive', onPress: () => signOut() }
+  ]);
+
+  const Row = ({ icon, label, value, onPress, danger, locked }) => (
+    <TouchableOpacity style={S.item} onPress={onPress} disabled={!onPress}>
       <View style={S.itemLeft}>
         <Ionicons name={icon} size={20} color={danger ? T.danger : T.text} />
         <Text style={[S.itemT, danger && { color: T.danger }]}>{label}</Text>
       </View>
-      {onToggle ? (
-        <Switch value={!!value} onValueChange={onToggle} trackColor={{ true: T.accent, false: T.border }} />
+      {locked ? (
+        <View style={S.locked}>
+          <Text style={S.lockedT}>{value}</Text>
+          <Ionicons name="lock-closed" size={12} color={T.muted} />
+        </View>
       ) : (
         <Ionicons name="chevron-forward" size={18} color={T.muted} />
       )}
@@ -31,27 +38,26 @@ export default function SettingsScreen() {
       <ScrollView>
         <View style={S.section}>
           <Text style={S.secTitle}>Account</Text>
-          <Row icon="person-outline" label="Edit Profile" onPress={() => Alert.alert('Go to Profile tab to edit')} />
-          <Row icon="lock-closed-outline" label="Privacy & Safety" onPress={() => Alert.alert('Privacy', 'Your data stays on device.')} />
-          <Row icon="shield-checkmark-outline" label="Security" onPress={() => Alert.alert('Security', 'Session is stored locally.')} />
+          <Row icon="person-outline" label="Edit Profile" onPress={() => nav.navigate('Profile')} />
+          <Row icon="lock-closed-outline" label="Privacy & Safety"
+            onPress={() => Alert.alert('Privacy & Safety', 'Posts are public. Your email is never shown to other users.')} />
+          <Row icon="shield-checkmark-outline" label="Security"
+            onPress={() => Alert.alert('Security', 'Your session is stored securely on this device and refreshed automatically.')} />
         </View>
 
         <View style={S.section}>
-          <Text style={S.secTitle}>Preferences</Text>
-          <Row icon="moon-outline" label="Dark Mode" value={s.darkMode} onToggle={v => updateSettings({ darkMode: v })} />
-          <Row icon="notifications-outline" label="Notifications" value={s.notificationsOn} onToggle={v => updateSettings({ notificationsOn: v })} />
-          <Row icon="eye-off-outline" label="Private Account" value={s.privateAccount} onToggle={v => updateSettings({ privateAccount: v })} />
+          <Text style={S.secTitle}>Appearance</Text>
+          {/* sqawk is strictly black & white, so the theme is fixed rather than a toggle. */}
+          <Row icon="moon-outline" label="Dark Mode" value="Always On" locked />
         </View>
 
         <View style={S.section}>
           <Text style={S.secTitle}>About</Text>
-          <Row icon="information-circle-outline" label="VOIDBOOK v1.0.0" onPress={() => Alert.alert('VOIDBOOK', 'The blackest social layer.')} />
+          <Row icon="information-circle-outline" label="sqawk v1.0.0"
+            onPress={() => Alert.alert('sqawk', 'A black and white social layer.')} />
         </View>
 
-        <TouchableOpacity style={S.signOut} onPress={() => Alert.alert('Sign Out?', '', [
-          { text:'Cancel', style:'cancel' },
-          { text:'Sign Out', style:'destructive', onPress:signOut }
-        ])}>
+        <TouchableOpacity style={S.signOut} onPress={confirmSignOut}>
           <Ionicons name="log-out-outline" size={20} color={T.danger} />
           <Text style={S.signOutT}>Sign Out</Text>
         </TouchableOpacity>
@@ -70,7 +76,10 @@ const S = StyleSheet.create({
           paddingVertical:16, borderBottomWidth:1, borderBottomColor:T.border },
   itemLeft: { flexDirection:'row', alignItems:'center', gap:12 },
   itemT: { color:T.text, fontSize:15 },
+  locked: { flexDirection:'row', alignItems:'center', gap:6 },
+  lockedT: { color:T.muted, fontSize:13, fontWeight:'600' },
   signOut: { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8,
              margin:24, padding:16, borderRadius:12, borderWidth:1, borderColor:T.danger },
   signOutT: { color:T.danger, fontWeight:'800', fontSize:15 }
 });
+

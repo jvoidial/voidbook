@@ -16,7 +16,6 @@ const EMPTY = {
   // Present for the not-yet-migrated placeholder screens (Groups, Marketplace,
   // Friends) so they render an empty list instead of throwing.
   groups: [], listings: [], friends: { friends: [], requests: [], suggestions: [] },
-  settings: { darkMode: true, notificationsOn: true, privateAccount: false }
 };
 
 function normalizePosts(posts, comments, likes, me) {
@@ -49,6 +48,15 @@ export function AppProvider({ children }) {
   const [ready, setReady] = useState(false);
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  // Merge a raw `comments` row into its post. Idempotent, so the global
+  // subscription and a post-scoped one can both feed it without duplicating.
+  const ingestComment = (c) => setState(s => ({
+    ...s,
+    posts: s.posts.map(p => p.id === c.post_id
+      ? { ...p, comments: p.comments.some(x => x.id === c.id) ? p.comments : [...p.comments, mapComment(c)] }
+      : p)
+  }));
 
   useEffect(() => {
     if (!me) { setState(EMPTY); setReady(true); return; }
@@ -105,9 +113,7 @@ export function AppProvider({ children }) {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts' }, ({ new: p }) =>
         setState(s => ({ ...s, posts: s.posts.map(x => x.id === p.id ? { ...x, ...p, userId: p.author_id, ts: p.created_at } : x) })))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, ({ new: c }) =>
-        setState(s => ({ ...s, posts: s.posts.map(p => p.id === c.post_id
-          ? { ...p, comments: p.comments.some(x => x.id === c.id) ? p.comments : [...p.comments, mapComment(c)] }
-          : p) })))
+        ingestComment(c))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, ({ new: m }) =>
         setState(s => ({ ...s, conversations: s.conversations.map(c => c.id === m.conversation_id
           ? { ...c, messages: c.messages.some(x => x.id === m.id) ? c.messages : [...c.messages, mapMessage(m)] }
@@ -124,7 +130,7 @@ export function AppProvider({ children }) {
     setState(s => ({ ...s, posts: s.posts.map(p => p.id === id ? { ...p, ...patch } : p) }));
 
   const api = {
-    state, ready,
+    state, ready, ingestComment,
 
     addPost: async (content, mediaUrl, mediaType) => {
       const { data, error } = await supabase.from('posts')
@@ -250,7 +256,6 @@ export function AppProvider({ children }) {
       await supabase.from('notifications').delete().eq('user_id', me);
     },
 
-    updateSettings: (patch) => setState(s => ({ ...s, settings: { ...s.settings, ...patch } })),
 
     // Not part of the current schema; kept so existing screens don't crash.
     toggleGroup: () => {}, acceptFriend: () => {}, rejectFriend: () => {},

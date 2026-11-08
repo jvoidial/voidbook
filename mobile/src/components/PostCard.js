@@ -12,8 +12,8 @@ export default function PostCard({ post, user }) {
   const { state, likePost, sharePost, toggleBookmark } = useApp();
   const mins = Math.floor((Date.now() - new Date(post.created_at || post.ts).getTime()) / 60000);
   const timeLabel = mins < 1 ? 'now' : mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins/60)}h` : `${Math.floor(mins/1440)}d`;
-  const bookmarked = state.bookmarks.includes(post.id);
-  const liked = state.myLikes.includes(post.id);
+  const bookmarked = (state.bookmarks || []).includes(post.id);
+  const liked = (state.myLikes || []).includes(post.id);
 
   const renderContent = (c) => (c || '').split(/(\s+)/).map((part, i) => {
     if (part.startsWith('#') || part.startsWith('@')) return <Text key={i} style={{ color: T.link }}>{part}</Text>;
@@ -63,7 +63,7 @@ export default function PostCard({ post, user }) {
           </TouchableOpacity>
           <TouchableOpacity style={S.b}>
             <Ionicons name="stats-chart-outline" size={18} color={T.muted} />
-            <Text style={S.bt}>{post.views || '1.2K'}</Text>
+            <Text style={S.bt}>{post.views || ''}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={S.b} onPress={() => toggleBookmark(post.id)}>
             <Ionicons name={bookmarked ? "bookmark" : "bookmark-outline"} size={18} color={bookmarked ? T.link : T.muted} />
