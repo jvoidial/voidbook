@@ -59,6 +59,14 @@ filesystem (relative -> real file, bare -> `node_modules/<pkg>` exists).
   `type=recovery` on the incoming URL instead (`parseAuthUrl` in `AuthContext`).
 - `profiles.verified` predates `is_verified`. The UI reads both via
   `components/BlueCheck.js` so a badge cannot vanish when one column lags.
+- Notifications are produced by **database triggers** (`007_notifications.sql`),
+  not by the app. A trigger fires for every writer and cannot be skipped by a
+  client that forgets to call it. Any new notifiable action needs a trigger here
+  as well as a `kind` string the UI knows.
+- Those trigger functions must be `SECURITY DEFINER`: `notif_own` is
+  `using (auth.uid() = user_id)`, so the acting user cannot insert a row owned
+  by the recipient. Each one also swallows its own errors, because a failed
+  notification must never roll back the like/comment/follow that caused it.
 
 ## Never
 

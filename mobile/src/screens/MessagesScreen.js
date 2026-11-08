@@ -14,6 +14,8 @@ export default function MessagesScreen() {
   const [text, setText] = useState('');
   const [newChat, setNewChat] = useState(false);
   const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
+  // Exclude yourself so the "New Message" picker never offers a self-chat.
+  const others = (state.users || []).filter(u => u.id !== me);
 
   const openConversation = (id) => {
     setActive(id);
@@ -110,8 +112,10 @@ export default function MessagesScreen() {
                 <Ionicons name="close" size={24} color={T.text} />
               </TouchableOpacity>
             </View>
-            <FlatList data={(state.users || []).filter(u => u.id !== me)}
+            <FlatList data={others}
+              style={S.modalList}
               keyExtractor={i => i.id}
+              keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
                 <TouchableOpacity style={S.row} onPress={() => startChat(item.id)}>
                   <View style={S.av}><Text style={S.avT}>{item.name[0]}</Text></View>
@@ -121,7 +125,12 @@ export default function MessagesScreen() {
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={T.muted} />
                 </TouchableOpacity>
-              )} />
+              )}
+              ListEmptyComponent={
+                <Text style={S.modalEmpty}>
+                  No one to message yet. Other accounts will appear here once they sign up.
+                </Text>
+              } />
           </View>
         </View>
       </Modal>
@@ -158,6 +167,11 @@ const S = StyleSheet.create({
   modalBg: { flex:1, backgroundColor:'rgba(0,0,0,0.75)', justifyContent:'flex-end' },
   modal: { backgroundColor:T.bg, borderTopLeftRadius:24, borderTopRightRadius:24,
            padding:20, maxHeight:'75%', borderTopWidth:1, borderColor:T.border },
+  // The modal is capped at 75% height but is not itself scrollable, so the list
+  // must shrink into the available space and scroll internally. Without this a
+  // long user list overflows past the cap and the rows below it are unreachable.
+  modalList: { flexShrink:1 },
+  modalEmpty: { color:T.muted, textAlign:'center', paddingVertical:32 },
   modalHead: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 },
   modalTitle: { color:T.text, fontSize:20, fontWeight:'800' }
 });
