@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../context/AuthContext';
-import { theme as T } from '../theme';
+import { useAuth } from '../../context/AuthContext';
+import { theme as T } from '../../theme';
 
 // Shown when the app is opened from a password-recovery link. The user is
 // already holding a valid session, so this only has to set the new password.
