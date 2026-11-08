@@ -31,8 +31,9 @@ export default function PostDetailScreen({ route, navigation }) {
 
   const author = usersById[post.userId] || { name: 'You', handle: '@you' };
   const bookmarked = state.bookmarks.includes(post.id);
+  const liked = state.myLikes.includes(post.id);
   const renderContent = (c) => (c || '').split(/(\s+)/).map((part, i) => {
-    if (part.startsWith('#') || part.startsWith('@')) return <Text key={i} style={{ color: T.accent, fontWeight: '600' }}>{part}</Text>;
+    if (part.startsWith('#') || part.startsWith('@')) return <Text key={i} style={{ color: T.link, fontWeight: '600' }}>{part}</Text>;
     return part;
   });
 
@@ -67,7 +68,7 @@ export default function PostDetailScreen({ route, navigation }) {
               </View>
             </View>
             <Text style={S.bigContent}>{renderContent(post.content)}</Text>
-            <Text style={S.time}>{new Date(post.ts).toLocaleString()}</Text>
+            <Text style={S.time}>{new Date(post.created_at || post.ts).toLocaleString()}</Text>
 
             <View style={S.statsRow}>
               <Text style={S.stat}><Text style={{ color: T.text, fontWeight: '700' }}>{post.likes}</Text> Likes</Text>
@@ -77,7 +78,7 @@ export default function PostDetailScreen({ route, navigation }) {
 
             <View style={S.bar}>
               <TouchableOpacity style={S.barBtn} onPress={() => likePost(post.id)}>
-                <Ionicons name="heart-outline" size={20} color={T.subText} /><Text style={S.barBtnT}>Like</Text>
+                <Ionicons name={liked ? 'heart' : 'heart-outline'} size={20} color={liked ? T.danger : T.subText} /><Text style={[S.barBtnT, liked && { color: T.danger }]}>Like</Text>
               </TouchableOpacity>
               <TouchableOpacity style={S.barBtn} onPress={() => sharePost(post.id)}>
                 <Ionicons name="repeat-outline" size={20} color={T.subText} /><Text style={S.barBtnT}>Echo</Text>

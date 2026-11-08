@@ -13,23 +13,28 @@ export default function PostCard({ post, user }) {
   const mins = Math.floor((Date.now() - new Date(post.created_at || post.ts).getTime()) / 60000);
   const timeLabel = mins < 1 ? 'now' : mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins/60)}h` : `${Math.floor(mins/1440)}d`;
   const bookmarked = state.bookmarks.includes(post.id);
+  const liked = state.myLikes.includes(post.id);
 
   const renderContent = (c) => (c || '').split(/(\s+)/).map((part, i) => {
-    if (part.startsWith('#') || part.startsWith('@')) return <Text key={i} style={{ color: T.accent }}>{part}</Text>;
+    if (part.startsWith('#') || part.startsWith('@')) return <Text key={i} style={{ color: T.link }}>{part}</Text>;
     return part;
   });
 
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={() => nav.push('PostDetail', { postId: post.id })} style={S.card}>
-      <TouchableOpacity onPress={() => nav.push('UserProfile', { userId: user?.id })}>
-        <View style={S.av}><Text style={S.avT}>{(user?.name || '?')[0]?.toUpperCase()}</Text></View>
+      <TouchableOpacity onPress={() => nav.push('UserProfile', { userId: post.userId })}>
+        <View style={S.av}>
+          {user?.avatar_url
+            ? <Image source={{ uri: user.avatar_url }} style={S.avImg} />
+            : <Text style={S.avT}>{(user?.name || '?')[0]?.toUpperCase()}</Text>}
+        </View>
       </TouchableOpacity>
-      
+
       <View style={S.contentWrap}>
         <View style={S.head}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
             <Text style={S.nm} numberOfLines={1}>{user?.name || 'Unknown'}</Text>
-            {user?.verified && <Ionicons name="checkmark-circle" size={15} color={T.accent} />}
+            {user?.verified && <Ionicons name="checkmark-circle" size={15} color={T.link} />}
             <Text style={S.hd} numberOfLines={1}>@{user?.handle?.replace('@','')} · {timeLabel}</Text>
           </View>
           <TouchableOpacity>
@@ -37,7 +42,7 @@ export default function PostCard({ post, user }) {
           </TouchableOpacity>
         </View>
 
-        <Text style={S.ct}>{renderContent(post.content)}</Text>
+        {!!post.content && <Text style={S.ct}>{renderContent(post.content)}</Text>}
 
         {post.media_url && post.media_type === 'image' && (
           <Image source={{ uri: post.media_url }} style={S.media} resizeMode="cover" />
@@ -53,15 +58,15 @@ export default function PostCard({ post, user }) {
             <Text style={S.bt}>{post.shares || ''}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={S.b} onPress={() => likePost(post.id)}>
-            <Ionicons name="heart-outline" size={18} color={T.muted} />
-            <Text style={S.bt}>{post.likes || ''}</Text>
+            <Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? T.danger : T.muted} />
+            <Text style={[S.bt, liked && { color: T.danger }]}>{post.likes || ''}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={S.b}>
             <Ionicons name="stats-chart-outline" size={18} color={T.muted} />
             <Text style={S.bt}>{post.views || '1.2K'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={S.b} onPress={() => toggleBookmark(post.id)}>
-            <Ionicons name={bookmarked ? "bookmark" : "bookmark-outline"} size={18} color={bookmarked ? T.accent : T.muted} />
+            <Ionicons name={bookmarked ? "bookmark" : "bookmark-outline"} size={18} color={bookmarked ? T.link : T.muted} />
           </TouchableOpacity>
         </View>
       </View>
@@ -71,7 +76,8 @@ export default function PostCard({ post, user }) {
 
 const S = StyleSheet.create({
   card: { flexDirection: 'row', backgroundColor: T.bg, paddingHorizontal: 16, paddingTop: 12, borderBottomWidth: 1, borderBottomColor: T.divider },
-  av: { width: 40, height: 40, borderRadius: 20, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  av: { width: 40, height: 40, borderRadius: 20, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center', marginRight: 12, overflow: 'hidden' },
+  avImg: { width: '100%', height: '100%' },
   avT: { color: T.text, fontWeight: 'bold', fontSize: 16 },
   contentWrap: { flex: 1, paddingBottom: 12 },
   head: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },

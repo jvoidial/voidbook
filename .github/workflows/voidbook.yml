@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       NODE_ENV: production
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
@@ -20,17 +20,22 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
 
+      # No dependency caching: a stale node/gradle cache was the source of the
+      # corrupted native build previously, so every run installs and prebuilds fresh.
       - name: Install deps
         working-directory: mobile
         run: npm install --legacy-peer-deps --no-audit --no-fund
@@ -38,24 +43,33 @@ jobs:
       - name: Write .env
         working-directory: mobile
         run: |
-          echo "EXPO_PUBLIC_SUPABASE_URL=$EXPO_PUBLIC_SUPABASE_URL" > .env
-          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=$EXPO_PUBLIC_SUPABASE_ANON_KEY" >> .env
-          echo "EXPO_PUBLIC_WORKER_URL=$EXPO_PUBLIC_WORKER_URL" >> .env
+          printf 'EXPO_PUBLIC_SUPABASE_URL=%s\n' "$EXPO_PUBLIC_SUPABASE_URL" > .env
+          printf 'EXPO_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$EXPO_PUBLIC_SUPABASE_ANON_KEY" >> .env
+          printf 'EXPO_PUBLIC_WORKER_URL=%s\n' "$EXPO_PUBLIC_WORKER_URL" >> .env
 
-      - name: Expo Prebuild
+      - name: Expo prebuild (regenerates android/ from scratch)
         working-directory: mobile
         run: npx expo prebuild --platform android --clean
 
-      - name: Force Gradle 8.6 & Disable Proguard
+      - name: Pin Gradle 8.6, disable Proguard, tune JVM
         run: |
-          sed -i 's/gradle-8.8-all.zip/gradle-8.6-all.zip/g' mobile/android/gradle/wrapper/gradle-wrapper.properties
+          WRAPPER=mobile/android/gradle/wrapper/gradle-wrapper.properties
+          if grep -q 'gradle-8.8-all.zip' "$WRAPPER"; then
+            sed -i 's/gradle-8.8-all.zip/gradle-8.6-all.zip/g' "$WRAPPER"
+          fi
+          # Expo 51 targets Gradle 8.6; fail loudly if the wrapper is unexpected.
+          grep -q 'gradle-8.6-all.zip' "$WRAPPER" || { echo "Unexpected Gradle wrapper:"; cat "$WRAPPER"; exit 1; }
           sed -i 's/minifyEnabled true/minifyEnabled false/g' mobile/android/app/build.gradle
-          echo "android.enableProguardInReleaseBuilds=false" >> mobile/android/gradle.properties
-          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m" >> mobile/android/gradle.properties
+          {
+            echo 'android.enableProguardInReleaseBuilds=false'
+            echo 'org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m'
+          } >> mobile/android/gradle.properties
 
-      - name: Configure Release Signing
+      - name: Configure release signing
         working-directory: mobile/android/app
         run: |
+          # prebuild may emit a debug.keystore whose alias collides with the one
+          # we generate below; remove it first to avoid "alias already exists".
           rm -f debug.keystore
           cat >> build.gradle << 'GRADLE_EOF'
 
@@ -81,11 +95,11 @@ jobs:
             -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=sqawk"
 
-      - name: Build APK
+      - name: Build release APK
         working-directory: mobile/android
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Release
+      - name: Stage artifact
         run: |
           mkdir -p artifacts
           cp mobile/android/app/build/outputs/apk/release/app-release.apk artifacts/sqawk.apk

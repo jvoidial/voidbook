@@ -69,7 +69,7 @@ export default function SignUpScreen({ navigation }) {
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => navigation.navigate('SignIn')} style={S.link}>
-              <Text style={S.linkT}>Already have an account? <Text style={{ color: T.accent }}>Sign in</Text></Text>
+              <Text style={S.linkT}>Already have an account? <Text style={{ color: T.link }}>Sign in</Text></Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

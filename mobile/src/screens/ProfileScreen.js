@@ -11,7 +11,7 @@ import { theme as T } from '../theme';
 
 export default function ProfileScreen() {
   const nav = useNavigation();
-  const { user, signOut, updateProfile, uploadAvatar } = useAuth();
+  const { user, updateProfile, uploadAvatar, uploadCover } = useAuth();
   const { state } = useApp();
   const [edit, setEdit] = useState(false);
   const [tab, setTab]   = useState('posts');
@@ -21,36 +21,40 @@ export default function ProfileScreen() {
   });
 
   const me = state.profiles?.[user?.id] || user || {};
-  const mine = state.posts.filter(p => p.author_id === user?.id);
+  const mine = state.posts.filter(p => p.userId === user?.id);
   const saved = state.posts.filter(p => state.bookmarks.includes(p.id));
   const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
+  const followerCount = state.follows.filter(f => f.followee_id === user?.id).length;
+  const followingCount = state.follows.filter(f => f.follower_id === user?.id).length;
 
   const changeAvatar = async () => {
+    const run = async (picker) => {
+      try {
+        setBusy(true);
+        const asset = await picker();
+        if (!asset) return;
+        const url = await uploadMedia(asset, 'avatar', user.id);
+        await uploadAvatar(url);
+        Alert.alert('Done', 'Profile picture updated');
+      } catch (e) { Alert.alert('Error', e.message); }
+      finally { setBusy(false); }
+    };
     Alert.alert('Change profile picture', '', [
-      { text: 'Take photo', onPress: async () => {
-        try {
-          setBusy(true);
-          const asset = await takePhoto();
-          if (!asset) return;
-          const url = await uploadMedia(asset, 'avatar', user.id);
-          await uploadAvatar(url);
-          Alert.alert('Done', 'Profile picture updated');
-        } catch (e) { Alert.alert('Error', e.message); }
-        finally { setBusy(false); }
-      }},
-      { text: 'Choose from library', onPress: async () => {
-        try {
-          setBusy(true);
-          const asset = await pickImage();
-          if (!asset) return;
-          const url = await uploadMedia(asset, 'avatar', user.id);
-          await uploadAvatar(url);
-          Alert.alert('Done', 'Profile picture updated');
-        } catch (e) { Alert.alert('Error', e.message); }
-        finally { setBusy(false); }
-      }},
+      { text: 'Take photo', onPress: () => run(takePhoto) },
+      { text: 'Choose from library', onPress: () => run(pickImage) },
       { text: 'Cancel', style: 'cancel' }
     ]);
+  };
+
+  const changeCover = async () => {
+    try {
+      setBusy(true);
+      const asset = await pickImage({ allowsEditing: true, quality: 0.8 });
+      if (!asset) return;
+      const url = await uploadMedia(asset, 'cover', user.id);
+      await uploadCover(url);
+    } catch (e) { Alert.alert('Error', e.message); }
+    finally { setBusy(false); }
   };
 
   const save = async () => {
@@ -80,16 +84,19 @@ export default function ProfileScreen() {
         ListHeaderComponent={
           <View>
             <View style={S.cover}>
-              <View style={S.coverGradient} />
+              {me.cover_url ? <Image source={{ uri: me.cover_url }} style={S.coverImg} /> : null}
+              <TouchableOpacity style={S.coverBtn} onPress={changeCover} disabled={busy}>
+                <Ionicons name="image-outline" size={16} color={T.text} />
+              </TouchableOpacity>
               <TouchableOpacity style={S.avatarWrap} onPress={changeAvatar} disabled={busy}>
                 <View style={S.avatar}>
                   {me.avatar_url
                     ? <Image source={{ uri: me.avatar_url }} style={S.avatarImg} />
                     : <Text style={S.avatarT}>{(user?.name || '?')[0].toUpperCase()}</Text>}
-                  {busy && <ActivityIndicator color={T.accent} style={StyleSheet.absoluteFill} />}
+                  {busy && <ActivityIndicator color={T.link} style={StyleSheet.absoluteFill} />}
                 </View>
                 <View style={S.cameraBadge}>
-                  <Ionicons name="camera" size={14} color="#000" />
+                  <Ionicons name="camera" size={14} color={T.bg} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -100,32 +107,32 @@ export default function ProfileScreen() {
               {user?.bio ? <Text style={S.bio}>{user.bio}</Text> : null}
 
               <View style={S.stats}>
-                <View style={S.stat}><Text style={S.num}>{me.followers || 0}</Text><Text style={S.lbl}>Followers</Text></View>
+                <View style={S.stat}><Text style={S.num}>{followerCount}</Text><Text style={S.lbl}>Followers</Text></View>
                 <View style={S.div} />
-                <View style={S.stat}><Text style={S.num}>{state.follows?.filter(f => f.follower_id === user?.id).length || 0}</Text><Text style={S.lbl}>Following</Text></View>
+                <View style={S.stat}><Text style={S.num}>{followingCount}</Text><Text style={S.lbl}>Following</Text></View>
                 <View style={S.div} />
                 <View style={S.stat}><Text style={S.num}>{me.tokens ?? 100}</Text><Text style={S.lbl}>Tokens</Text></View>
               </View>
 
               <TouchableOpacity style={S.editBtn} onPress={changeAvatar}>
-                <Ionicons name="camera-outline" size={16} color="#000" />
+                <Ionicons name="camera-outline" size={16} color={T.bg} />
                 <Text style={S.editBtnT}>Change Photo</Text>
               </TouchableOpacity>
             </View>
 
             <View style={S.tabs}>
               <TouchableOpacity style={[S.tab, tab==='posts' && S.tabActive]} onPress={() => setTab('posts')}>
-                <Ionicons name="grid-outline" size={16} color={tab==='posts' ? T.accent : T.muted} />
+                <Ionicons name="grid-outline" size={16} color={tab==='posts' ? T.text : T.muted} />
                 <Text style={[S.tabT, tab==='posts' && S.tabTActive]}>Posts</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[S.tab, tab==='saved' && S.tabActive]} onPress={() => setTab('saved')}>
-                <Ionicons name="bookmark-outline" size={16} color={tab==='saved' ? T.accent : T.muted} />
+                <Ionicons name="bookmark-outline" size={16} color={tab==='saved' ? T.text : T.muted} />
                 <Text style={[S.tabT, tab==='saved' && S.tabTActive]}>Saved</Text>
               </TouchableOpacity>
             </View>
           </View>
         }
-        renderItem={({ item }) => <PostCard post={item} user={usersById[item.author_id] || user} />}
+        renderItem={({ item }) => <PostCard post={item} user={usersById[item.userId] || user} />}
         ListEmptyComponent={
           <View style={S.empty}>
             <Ionicons name="cube-outline" size={40} color={T.muted} />
@@ -139,11 +146,11 @@ export default function ProfileScreen() {
           <View style={S.modal}>
             <Text style={S.modalTitle}>Edit Profile</Text>
             <TextInput style={S.in} placeholder="Name" placeholderTextColor={T.muted} value={form.name} onChangeText={t => setForm({...form, name:t})} />
-            <TextInput style={S.in} placeholder="Handle" placeholderTextColor={T.muted} value={form.handle} onChangeText={t => setForm({...form, handle:t})} />
+            <TextInput style={S.in} placeholder="Handle" placeholderTextColor={T.muted} autoCapitalize="none" value={form.handle} onChangeText={t => setForm({...form, handle:t})} />
             <TextInput style={[S.in, { height: 80 }]} placeholder="Bio" placeholderTextColor={T.muted} multiline value={form.bio} onChangeText={t => setForm({...form, bio:t})} />
             <View style={S.modalActions}>
               <TouchableOpacity style={S.cancel} onPress={() => setEdit(false)}><Text style={S.cancelT}>Cancel</Text></TouchableOpacity>
-              <TouchableOpacity style={S.go} onPress={save}><Text style={S.goT}>Save</Text></TouchableOpacity>
+              <TouchableOpacity style={S.go} onPress={save} disabled={busy}><Text style={S.goT}>Save</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -156,12 +163,13 @@ const S = StyleSheet.create({
   c: { flex: 1, backgroundColor: T.bg },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: T.divider },
   topTitle: { color: T.text, fontSize: 18, fontWeight: '800' },
-  cover: { height: 150, backgroundColor: '#0A1A18', position: 'relative' },
-  coverGradient: { ...StyleSheet.absoluteFillObject, backgroundColor: T.accentDim },
+  cover: { height: 150, backgroundColor: T.surface, position: 'relative' },
+  coverImg: { width: '100%', height: '100%' },
+  coverBtn: { position: 'absolute', top: 12, right: 12, width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: T.border },
   avatarWrap: { position: 'absolute', bottom: -50, left: 20 },
   avatar: { width: 100, height: 100, borderRadius: 50, backgroundColor: T.surface, borderWidth: 4, borderColor: T.bg, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarImg: { width: '100%', height: '100%' },
-  avatarT: { color: T.accent, fontSize: 40, fontWeight: '900' },
+  avatarT: { color: T.text, fontSize: 40, fontWeight: '900' },
   cameraBadge: { position: 'absolute', bottom: 4, right: 4, width: 28, height: 28, borderRadius: 14, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: T.bg },
   info: { paddingTop: 60, paddingHorizontal: 20, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: T.divider, paddingBottom: 16 },
   name: { color: T.text, fontSize: 22, fontWeight: '900' },
@@ -169,11 +177,11 @@ const S = StyleSheet.create({
   bio: { color: T.subText, fontSize: 14, marginTop: 10, textAlign: 'center' },
   stats: { flexDirection: 'row', marginTop: 20, alignItems: 'center' },
   stat: { alignItems: 'center', paddingHorizontal: 22 },
-  num: { color: T.accent, fontSize: 20, fontWeight: '800' },
+  num: { color: T.text, fontSize: 20, fontWeight: '800' },
   lbl: { color: T.muted, fontSize: 11, marginTop: 2 },
   div: { width: 1, height: 22, backgroundColor: T.divider },
   editBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 18, backgroundColor: T.accent, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 22 },
-  editBtnT: { color: '#000', fontWeight: '800', fontSize: 13 },
+  editBtnT: { color: T.bg, fontWeight: '800', fontSize: 13 },
   tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: T.divider },
   tab: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingVertical: 14 },
   tabActive: { borderBottomWidth: 2, borderBottomColor: T.accent },
@@ -189,5 +197,5 @@ const S = StyleSheet.create({
   cancel: { flex: 1, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: T.border, alignItems: 'center' },
   cancelT: { color: T.text, fontWeight: '700' },
   go: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: T.accent, alignItems: 'center' },
-  goT: { color: '#000', fontWeight: '800' }
+  goT: { color: T.bg, fontWeight: '800' }
 });

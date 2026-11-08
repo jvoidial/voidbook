@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
@@ -14,12 +14,14 @@ export default function UserProfileScreen({ route, navigation }) {
   const u = state.users.find(x => x.id === userId) || { name: 'Unknown', handle: '@unknown', followers: 0, following: 0, bio: '' };
   const usersById = Object.fromEntries(state.users.map(x => [x.id, x]));
   const posts = state.posts.filter(p => p.userId === userId);
-  const isFollowing = state.follows.following.includes(userId);
+  const isFollowing = state.follows.some(f => f.follower_id === me?.id && f.followee_id === userId);
   const isSelf = me?.id === userId;
 
-  const message = () => {
-    createConversation(userId);
-    navigation.navigate('Messages');
+  const message = async () => {
+    try {
+      await createConversation(userId);
+      navigation.navigate('Messages');
+    } catch (e) { Alert.alert('Message', e.message); }
   };
 
   return (
@@ -43,10 +45,14 @@ export default function UserProfileScreen({ route, navigation }) {
         ListHeaderComponent={
           <View>
             <View style={S.head}>
-              <View style={S.bigAv}><Text style={S.bigAvT}>{(u.name || '?')[0].toUpperCase()}</Text></View>
+              <View style={S.bigAv}>
+                {u.avatar_url
+                  ? <Image source={{ uri: u.avatar_url }} style={S.bigAvImg} />
+                  : <Text style={S.bigAvT}>{(u.name || '?')[0].toUpperCase()}</Text>}
+              </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Text style={S.nm}>{u.name}</Text>
-                {u.verified && <Ionicons name="checkmark-circle" size={16} color={T.accent} />}
+                {u.verified && <Ionicons name="checkmark-circle" size={16} color={T.link} />}
               </View>
               <Text style={S.hd}>{u.handle}</Text>
               {u.bio ? <Text style={S.bio}>{u.bio}</Text> : null}
@@ -61,12 +67,12 @@ export default function UserProfileScreen({ route, navigation }) {
               {!isSelf && (
                 <View style={S.actions}>
                   <TouchableOpacity style={[S.btn, isFollowing ? S.btnGhost : S.btnPrimary]} onPress={() => toggleFollow(userId)}>
-                    <Ionicons name={isFollowing ? 'checkmark' : 'person-add'} size={16} color={isFollowing ? T.text : '#000'} />
+                    <Ionicons name={isFollowing ? 'checkmark' : 'person-add'} size={16} color={isFollowing ? T.text : T.bg} />
                     <Text style={[S.btnT, isFollowing && { color: T.text }]}>{isFollowing ? 'Following' : 'Follow'}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[S.btn, S.btnGhost]} onPress={message}>
                     <Ionicons name="mail-outline" size={16} color={T.text} />
-                    <Text style={S.btnT}>Message</Text>
+                    <Text style={[S.btnT, { color: T.text }]}>Message</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -86,21 +92,22 @@ const S = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: T.divider },
   title: { color: T.text, fontSize: 18, fontWeight: '800' },
   head: { padding: 24, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: T.divider },
-  bigAv: { width: 88, height: 88, borderRadius: 44, backgroundColor: T.surface, borderWidth: 2, borderColor: T.accent, marginBottom: 12, alignItems: 'center', justifyContent: 'center' },
-  bigAvT: { color: T.accent, fontSize: 32, fontWeight: '900' },
+  bigAv: { width: 88, height: 88, borderRadius: 44, backgroundColor: T.surface, borderWidth: 2, borderColor: T.border, marginBottom: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  bigAvImg: { width: '100%', height: '100%' },
+  bigAvT: { color: T.text, fontSize: 32, fontWeight: '900' },
   nm: { color: T.text, fontSize: 20, fontWeight: '900' },
   hd: { color: T.muted, fontSize: 13, marginTop: 2 },
   bio: { color: T.subText, fontSize: 13, marginTop: 10, textAlign: 'center' },
   stats: { flexDirection: 'row', marginTop: 20, alignItems: 'center' },
   stat: { alignItems: 'center', paddingHorizontal: 20 },
-  num: { color: T.accent, fontSize: 18, fontWeight: '800' },
+  num: { color: T.text, fontSize: 18, fontWeight: '800' },
   lbl: { color: T.muted, fontSize: 11, marginTop: 2 },
   div: { width: 1, height: 20, backgroundColor: T.divider },
   actions: { flexDirection: 'row', gap: 10, marginTop: 20 },
   btn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 22 },
   btnPrimary: { backgroundColor: T.accent },
   btnGhost: { borderWidth: 1, borderColor: T.border },
-  btnT: { color: '#000', fontWeight: '700', fontSize: 13 },
+  btnT: { color: T.bg, fontWeight: '700', fontSize: 13 },
   sectionLabel: { color: T.muted, fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, padding: 16 },
   empty: { color: T.muted, textAlign: 'center', padding: 40 }
 });

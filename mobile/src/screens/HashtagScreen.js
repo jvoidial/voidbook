@@ -34,6 +34,6 @@ export default function HashtagScreen({ route, navigation }) {
 const S = StyleSheet.create({
   c: { flex: 1, backgroundColor: T.bg },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: T.divider },
-  title: { color: T.accent, fontSize: 18, fontWeight: '800' },
+  title: { color: T.link, fontSize: 18, fontWeight: '800' },
   empty: { color: T.muted, textAlign: 'center', padding: 40 }
 });

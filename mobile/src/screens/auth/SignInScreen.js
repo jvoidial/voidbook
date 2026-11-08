@@ -53,7 +53,7 @@ export default function SignInScreen({ navigation }) {
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => navigation.navigate('SignUp')} style={S.link}>
-            <Text style={S.linkT}>New here? <Text style={{ color: T.accent }}>Create account</Text></Text>
+            <Text style={S.linkT}>New here? <Text style={{ color: T.link }}>Create account</Text></Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
