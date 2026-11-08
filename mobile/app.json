@@ -2,6 +2,7 @@
   "expo": {
     "name": "sqawk",
     "slug": "sqawk",
+    "scheme": "sqawk",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
