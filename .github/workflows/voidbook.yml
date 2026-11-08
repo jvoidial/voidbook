@@ -98,13 +98,31 @@ jobs:
           sed -i 's/gradle-8.6-all.zip/gradle-8.6-bin.zip/g' mobile/android/gradle/wrapper/gradle-wrapper.properties
           # Remove any existing timeout lines
           sed -i '/networkTimeout/d' mobile/android/gradle/wrapper/gradle-wrapper.properties
-          # Add a 60-second timeout
-          echo "networkTimeout=60000" >> mobile/android/gradle/wrapper/gradle-wrapper.properties
-          echo "✅ Patched Gradle wrapper to -bin.zip with 60s timeout."
+          sed -i '/connectionTimeout/d' mobile/android/gradle/wrapper/gradle-wrapper.properties
+          # The distribution is ~130 MB. A 60s read timeout fails intermittently on
+          # a loaded runner ("Read timed out" fetching gradle-8.6-bin.zip), which is
+          # the flake that has broken this job before. Give it real headroom.
+          echo "networkTimeout=300000" >> mobile/android/gradle/wrapper/gradle-wrapper.properties
+          echo "connectionTimeout=60000" >> mobile/android/gradle/wrapper/gradle-wrapper.properties
+          echo "✅ Patched Gradle wrapper to -bin.zip with a 5-minute download timeout."
 
       - name: Build release APK
         working-directory: mobile/android
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: |
+          # One bounded retry. Gradle downloads the distribution, Android Gradle
+          # Plugin artefacts and Maven dependencies on a cold runner; a transient
+          # network failure aborts the whole build. A second attempt reuses what
+          # already downloaded. A genuine compile error simply fails twice.
+          for attempt in 1 2; do
+            echo "── Build attempt ${attempt} ──"
+            if ./gradlew assembleRelease --no-daemon --stacktrace; then
+              exit 0
+            fi
+            echo "Attempt ${attempt} failed. Retrying in 15s (transient downloads are the usual cause)."
+            sleep 15
+          done
+          echo "Build failed after 2 attempts."
+          exit 1
 
       - name: Stage artifact
         run: |
