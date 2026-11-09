@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
@@ -10,11 +10,27 @@ import { theme as T } from '../theme';
 export default function PostCard({ post, user }) {
   const nav = useNavigation();
   const { user: me } = useAuth();
-  const { state, likePost, sharePost, toggleBookmark } = useApp();
+  const { state, likePost, sharePost, toggleBookmark, deletePost } = useApp();
+  // `user` is the joined profile row; fall back cleanly if it is still loading.
+  const displayName = user?.name || 'Unknown';
+  const handle = (user?.handle || '').replace('@', '');
   const mins = Math.floor((Date.now() - new Date(post.created_at || post.ts).getTime()) / 60000);
   const timeLabel = mins < 1 ? 'now' : mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins/60)}h` : `${Math.floor(mins/1440)}d`;
   const bookmarked = (state.bookmarks || []).includes(post.id);
   const liked = (state.myLikes || []).includes(post.id);
+  const isMine = me?.id === post.userId;
+
+  const openMenu = () => Alert.alert('Post options', '', [
+    { text: 'Share', onPress: () => sharePost(post.id) },
+    { text: isMine ? 'Delete' : 'Report', style: 'destructive',
+      onPress: () => isMine
+        ? Alert.alert('Delete post?', 'This cannot be undone.', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Delete', style: 'destructive', onPress: () => deletePost(post.id) }
+          ])
+        : Alert.alert('Reporting unavailable', 'In-app reporting is not enabled yet.') },
+    { text: 'Cancel', style: 'cancel' }
+  ]);
 
   const renderContent = (c) => (c || '').split(/(\s+)/).map((part, i) => {
     if (part.startsWith('#') || part.startsWith('@')) return <Text key={i} style={{ color: T.link }}>{part}</Text>;
@@ -27,18 +43,18 @@ export default function PostCard({ post, user }) {
         <View style={S.av}>
           {user?.avatar_url
             ? <Image source={{ uri: user.avatar_url }} style={S.avImg} />
-            : <Text style={S.avT}>{(user?.name || '?')[0]?.toUpperCase()}</Text>}
+            : <Text style={S.avT}>{displayName[0]?.toUpperCase()}</Text>}
         </View>
       </TouchableOpacity>
 
       <View style={S.contentWrap}>
         <View style={S.head}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
-            <Text style={S.nm} numberOfLines={1}>{user?.name || 'Unknown'}</Text>
+            <Text style={S.nm} numberOfLines={1}>{displayName}</Text>
             <BlueCheck user={user} size={15} />
-            <Text style={S.hd} numberOfLines={1}>@{user?.handle?.replace('@','')} · {timeLabel}</Text>
+            <Text style={S.hd} numberOfLines={1}>@{handle} · {timeLabel}</Text>
           </View>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={openMenu} hitSlop={8}>
             <Ionicons name="ellipsis-horizontal" size={16} color={T.muted} />
           </TouchableOpacity>
         </View>
@@ -50,21 +66,21 @@ export default function PostCard({ post, user }) {
         )}
 
         <View style={S.bar}>
-          <TouchableOpacity style={S.b}>
+          <TouchableOpacity style={S.b} onPress={() => nav.push('PostDetail', { postId: post.id })}>
             <Ionicons name="chatbubble-outline" size={18} color={T.muted} />
-            <Text style={S.bt}>{(post.comments||[]).length || ''}</Text>
+            <Text style={S.bt}>{(post.comments||[]).length}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={S.b} onPress={() => sharePost(post.id)}>
             <Ionicons name="repeat-outline" size={20} color={T.muted} />
-            <Text style={S.bt}>{post.shares || ''}</Text>
+            <Text style={S.bt}>{post.shares || 0}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={S.b} onPress={() => likePost(post.id)}>
             <Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? T.danger : T.muted} />
-            <Text style={[S.bt, liked && { color: T.danger }]}>{post.likes || ''}</Text>
+            <Text style={[S.bt, liked && { color: T.danger }]}>{post.likes || 0}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={S.b}>
+          <TouchableOpacity style={S.b} onPress={() => nav.push('PostDetail', { postId: post.id })}>
             <Ionicons name="stats-chart-outline" size={18} color={T.muted} />
-            <Text style={S.bt}>{post.views || ''}</Text>
+            <Text style={S.bt}>{post.views || 0}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={S.b} onPress={() => toggleBookmark(post.id)}>
             <Ionicons name={bookmarked ? "bookmark" : "bookmark-outline"} size={18} color={bookmarked ? T.link : T.muted} />

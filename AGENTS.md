@@ -67,6 +67,36 @@ filesystem (relative -> real file, bare -> `node_modules/<pkg>` exists).
   `using (auth.uid() = user_id)`, so the acting user cannot insert a row owned
   by the recipient. Each one also swallows its own errors, because a failed
   notification must never roll back the like/comment/follow that caused it.
+- `notifications.target_id` is polymorphic: for `like`/`comment` it holds the
+  **post** id, for `follow` it holds the **follower** id. The UI must branch on
+  `kind` before using it as a navigation target.
+
+## Client conventions
+
+- **`useAuth().user` is the Supabase auth user** (id, email, metadata only). It
+  has **no** `name`, `handle`, `avatar_url` or `bio` — those live on the
+  `profiles` row exposed as `useAuth().profile`. Reading `user.name` yields
+  `undefined`, which renders blank names and a `'?'` avatar letter. Use
+  `profile` for display fields and `user.id` for identity.
+- **`push()` only exists on a stack navigator.** A screen inside the bottom-tab
+  navigator gets the *tab* router's helpers, which are `navigate`/`jumpTo` only —
+  `navigation.push` is `undefined` there and throws. From a tab screen use
+  `navigate`. (A component rendered under a tab screen inherits that tab's
+  navigation object, so `PostCard` must use `navigate` too.)
+- **Navigate across navigators by naming the target explicitly**, e.g. from a
+  root-stack screen into a tab: `navigation.navigate('MainTabs', { screen:
+  'Messages', params: {...} })`. `navigate('Messages')` from the stack finds
+  nothing.
+- Soft-deleted posts (`deleted_at is not null`) are filtered by RLS for *other*
+  users but **not** for the author, so every client query and the Realtime
+  `posts` handler must filter `deleted_at` too or the author sees their own
+  deleted posts.
+- Optimistic actions must **roll back and surface the error** when the write
+  fails, not just `console.warn`. A silent failure shows the user a state the
+  server never accepted.
+- Do not show a success message for an action that does nothing. If a feature
+  has no backend (e.g. reporting has no `reports` table), say it is unavailable
+  rather than faking a "submitted" confirmation.
 
 ## Never
 

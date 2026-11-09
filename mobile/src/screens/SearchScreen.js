@@ -19,6 +19,7 @@ export default function SearchScreen() {
   const [people, setPeople] = useState([]);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const seq = useRef(0);
 
   useEffect(() => {
@@ -40,6 +41,14 @@ export default function SearchScreen() {
       ]);
       // Ignore responses that arrive after a newer keystroke.
       if (mine !== seq.current) return;
+      if (p.error || o.error) {
+        // Surface a real failure instead of an empty list that reads as
+        // "no results".
+        setError((p.error || o.error).message);
+        setPeople([]); setPosts([]); setLoading(false);
+        return;
+      }
+      setError(null);
       setPeople(p.data || []);
       setPosts((o.data || []).map(x => ({ ...x, userId: x.author_id, ts: x.created_at })));
       setLoading(false);
@@ -93,6 +102,19 @@ export default function SearchScreen() {
       <SafeAreaView style={S.c} edges={['top']}>
         {header}
         <ActivityIndicator color={T.accent} style={{ marginTop: 40 }} />
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={S.c} edges={['top']}>
+        {header}
+        <View style={S.center}>
+          <Ionicons name="cloud-offline-outline" size={44} color={T.muted} />
+          <Text style={S.emptyT}>Search failed</Text>
+          <Text style={S.empty}>{error}</Text>
+        </View>
       </SafeAreaView>
     );
   }

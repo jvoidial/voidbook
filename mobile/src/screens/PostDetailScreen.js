@@ -10,7 +10,8 @@ import { theme as T } from '../theme';
 export default function PostDetailScreen({ route, navigation }) {
   const { postId } = route.params;
   const { state, addComment, likePost, sharePost, deletePost, toggleBookmark, ingestComment } = useApp();
-  const { user: me } = useAuth();
+  const { user: me, profile: myProfile } = useAuth();
+  const myName = myProfile?.name || 'You';
   const [text, setText] = useState('');
   const post = (state.posts || []).find(p => p.id === postId);
   const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
@@ -43,7 +44,8 @@ export default function PostDetailScreen({ route, navigation }) {
     );
   }
 
-  const author = usersById[post.userId] || { name: 'You', handle: '@you' };
+  const author = usersById[post.userId]
+    || (post.userId === me?.id ? { name: myName, handle: '' } : { name: 'Unknown', handle: '@unknown' });
   const bookmarked = (state.bookmarks || []).includes(post.id);
   const liked = (state.myLikes || []).includes(post.id);
   const renderContent = (c) => (c || '').split(/(\s+)/).map((part, i) => {
@@ -68,7 +70,7 @@ export default function PostDetailScreen({ route, navigation }) {
         <Text style={S.title}>Post</Text>
         <TouchableOpacity onPress={() => Alert.alert('Options', '', [
           ...(me?.id === post.userId ? [{ text:'Delete', style:'destructive', onPress:() => { deletePost(post.id); navigation.goBack(); } }] : []),
-          { text: 'Report', onPress: () => Alert.alert('Reported') },
+          { text: 'Report', onPress: () => Alert.alert('Reporting unavailable', 'In-app reporting is not enabled yet.') },
           { text: 'Cancel', style: 'cancel' }
         ])}>
           <Ionicons name="ellipsis-horizontal" size={22} color={T.text} />
@@ -107,7 +109,7 @@ export default function PostDetailScreen({ route, navigation }) {
                 <Ionicons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={20} color={bookmarked ? T.accent : T.subText} />
                 <Text style={S.barBtnT}>Save</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={S.barBtn} onPress={() => Alert.alert('Report', 'Report submitted')}>
+              <TouchableOpacity style={S.barBtn} onPress={() => Alert.alert('Reporting unavailable', 'In-app reporting is not enabled yet.')}>
                 <Ionicons name="flag-outline" size={20} color={T.subText} /><Text style={S.barBtnT}>Report</Text>
               </TouchableOpacity>
             </View>
@@ -116,7 +118,8 @@ export default function PostDetailScreen({ route, navigation }) {
           </View>
         }
         renderItem={({ item }) => {
-          const u = usersById[item.userId] || { name: 'You', handle: '@you' };
+          const u = usersById[item.userId]
+            || (item.userId === me?.id ? { name: myName, handle: '' } : { name: 'Unknown', handle: '@unknown' });
           return (
             <View style={S.commentRow}>
               <View style={S.cAv}><Text style={S.cAvT}>{u.name[0]}</Text></View>
@@ -131,7 +134,7 @@ export default function PostDetailScreen({ route, navigation }) {
       />
 
       <View style={S.inputRow}>
-        <View style={S.myAv}><Text style={S.myAvT}>{(me?.name || '?')[0]?.toUpperCase()}</Text></View>
+        <View style={S.myAv}><Text style={S.myAvT}>{myName[0]?.toUpperCase()}</Text></View>
         <TextInput style={S.input} placeholder="Add a comment..." placeholderTextColor={T.muted}
           value={text} onChangeText={setText} multiline />
         <TouchableOpacity style={S.send} onPress={submit}>

@@ -11,7 +11,7 @@ import { theme as T } from '../theme';
 export default function UserProfileScreen({ route, navigation }) {
   const { userId } = route.params;
   const { user: me } = useAuth();
-  const { state, toggleFollow, createConversation, reportItem } = useApp();
+  const { state, toggleFollow, createConversation } = useApp();
   const u = (state.users || []).find(x => x.id === userId) || { name: 'Unknown', handle: 'unknown', bio: '' };
   const usersById = Object.fromEntries((state.users || []).map(x => [x.id, x]));
   const posts = (state.posts || []).filter(p => p.userId === userId);
@@ -23,9 +23,16 @@ export default function UserProfileScreen({ route, navigation }) {
 
   const message = async () => {
     try {
-      await createConversation(userId);
-      navigation.navigate('Messages');
+      const id = await createConversation(userId);
+      // Messages lives in the tab navigator, not this stack, so target the tab
+      // screen explicitly and hand it the conversation to open.
+      navigation.navigate('MainTabs', { screen: 'Messages', params: { conversationId: id } });
     } catch (e) { Alert.alert('Message', e.message); }
+  };
+
+  const follow = async () => {
+    try { await toggleFollow(userId); }
+    catch (e) { Alert.alert('Follow failed', e.message); }
   };
 
   return (
@@ -36,7 +43,7 @@ export default function UserProfileScreen({ route, navigation }) {
         </TouchableOpacity>
         <Text style={S.title}>{u.name}</Text>
         <TouchableOpacity onPress={() => Alert.alert('Options', '', [
-          { text:'Report', style:'destructive', onPress:() => { reportItem('user', userId, 'inappropriate'); Alert.alert('Reported'); } },
+          { text:'Report', style:'destructive', onPress:() => Alert.alert('Reporting unavailable', 'In-app reporting is not enabled yet.') },
           { text:'Cancel', style:'cancel' }
         ])}>
           <Ionicons name="ellipsis-horizontal" size={22} color={T.text} />
@@ -70,7 +77,7 @@ export default function UserProfileScreen({ route, navigation }) {
 
               {!isSelf && (
                 <View style={S.actions}>
-                  <TouchableOpacity style={[S.btn, isFollowing ? S.btnGhost : S.btnPrimary]} onPress={() => toggleFollow(userId)}>
+                  <TouchableOpacity style={[S.btn, isFollowing ? S.btnGhost : S.btnPrimary]} onPress={follow}>
                     <Ionicons name={isFollowing ? 'checkmark' : 'person-add'} size={16} color={isFollowing ? T.text : T.bg} />
                     <Text style={[S.btnT, isFollowing && { color: T.text }]}>{isFollowing ? 'Following' : 'Follow'}</Text>
                   </TouchableOpacity>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,13 +6,14 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { theme as T } from '../theme';
 
-export default function MessagesScreen() {
+export default function MessagesScreen({ route }) {
   const { state, sendMessage, createConversation, markConversationRead } = useApp();
   const { user } = useAuth();
   const me = user?.id;
   const [active, setActive] = useState(null);
   const [text, setText] = useState('');
   const [newChat, setNewChat] = useState(false);
+  const listRef = useRef(null);
   const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
   // Exclude yourself so the "New Message" picker never offers a self-chat.
   const others = (state.users || []).filter(u => u.id !== me);
@@ -21,6 +22,12 @@ export default function MessagesScreen() {
     setActive(id);
     if (id) markConversationRead(id);
   };
+
+  // A "Message" tap on a profile navigates here with the conversation to open.
+  useEffect(() => {
+    const id = route?.params?.conversationId;
+    if (id) openConversation(id);
+  }, [route?.params?.conversationId]);
 
   const send = async () => {
     const body = text.trim();
@@ -53,8 +60,10 @@ export default function MessagesScreen() {
           </View>
           <View style={{ width:26 }} />
         </View>
-        <FlatList data={conv?.messages || []} keyExtractor={i => i.id}
+        <FlatList ref={listRef} data={conv?.messages || []} keyExtractor={i => i.id}
           contentContainerStyle={{ padding:16, gap:8 }}
+          // Keep the newest message visible when the thread opens or grows.
+          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
           renderItem={({ item }) => {
             const mine = item.from === me;
             return (

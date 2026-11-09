@@ -2,16 +2,27 @@ import React from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../context/AppContext';
 import { theme as T } from '../theme';
 
 export default function NotificationsScreen() {
+  const nav = useNavigation();
   const { state, clearNotifications, markNotificationRead } = useApp();
   const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
   const icons = { like:'heart', comment:'chatbubble', follow:'person-add', friend_request:'person-add', share:'repeat', mention:'at' };
   const label = n => ({ like:'liked your post', comment:'replied to your post',
     follow:'followed you', friend_request:'sent you a friend request',
     share:'reposted your post', mention:'mentioned you' }[n.type] || 'interacted with you');
+
+  // Tapping a notification opens the thing it is about. For a follow,
+  // target_id is the follower (see 007_notifications.sql); otherwise it is the
+  // post the actor interacted with.
+  const open = (n) => {
+    if (n.type === 'follow') nav.navigate('UserProfile', { userId: n.target_id || n.userId });
+    else if (n.target_id) nav.navigate('PostDetail', { postId: n.target_id });
+    else if (n.userId) nav.navigate('UserProfile', { userId: n.userId });
+  };
 
   return (
     <SafeAreaView style={S.c} edges={['top']}>
@@ -28,7 +39,7 @@ export default function NotificationsScreen() {
           const u = usersById[item.userId];
           return (
             <TouchableOpacity style={[S.row, !item.read && S.unread]}
-              onPress={() => markNotificationRead(item.id)}>
+              onPress={() => { markNotificationRead(item.id); open(item); }}>
               <View style={[S.iconCircle, item.type === 'like' && { backgroundColor: T.dangerDim }]}>
                 <Ionicons name={icons[item.type] || 'notifications'}
                   size={18} color={item.type === 'like' ? T.danger : T.link} />

@@ -12,7 +12,11 @@ import { theme as T } from '../theme';
 export default function FeedScreen() {
   const nav = useNavigation();
   const { state, addPost } = useApp();
-  const { user } = useAuth();
+  // `user` is the Supabase auth user (id/email only); display fields live on
+  // the profile row, so read the name/avatar from there.
+  const { user, profile } = useAuth();
+  const displayName = profile?.name || user?.email?.split('@')[0] || 'You';
+  const avatarUrl = profile?.avatar_url;
   const [modal, setModal] = useState(false);
   const [text, setText] = useState('');
   const [asset, setAsset] = useState(null);
@@ -46,9 +50,9 @@ export default function FeedScreen() {
       <View style={S.topBar}>
         <TouchableOpacity onPress={() => nav.navigate('Profile')}>
           <View style={S.av}>
-            {user?.avatar_url
-              ? <Image source={{ uri: user.avatar_url }} style={S.avImg} />
-              : <Text style={S.avT}>{(user?.name || '?')[0].toUpperCase()}</Text>}
+            {avatarUrl
+              ? <Image source={{ uri: avatarUrl }} style={S.avImg} />
+              : <Text style={S.avT}>{displayName[0].toUpperCase()}</Text>}
           </View>
         </TouchableOpacity>
 
@@ -63,6 +67,15 @@ export default function FeedScreen() {
         data={state.posts}
         keyExtractor={i => i.id}
         renderItem={({ item }) => <PostCard post={item} user={usersById[item.userId]} />}
+        ListEmptyComponent={
+          <View style={S.empty}>
+            <Ionicons name="chatbubbles-outline" size={40} color={T.muted} />
+            <Text style={S.emptyT}>No posts yet</Text>
+            <Text style={S.emptySub}>Tap the pencil to say something.</Text>
+          </View>
+        }
+        // Leave room under the last row so the FAB never covers it.
+        contentContainerStyle={{ paddingBottom: 96 }}
       />
 
       {/* Floating Action Button (Compose) */}
@@ -83,9 +96,9 @@ export default function FeedScreen() {
           </View>
           <View style={S.modalBody}>
             <View style={S.av}>
-              {user?.avatar_url
-                ? <Image source={{ uri: user.avatar_url }} style={S.avImg} />
-                : <Text style={S.avT}>{(user?.name || '?')[0].toUpperCase()}</Text>}
+              {avatarUrl
+                ? <Image source={{ uri: avatarUrl }} style={S.avImg} />
+                : <Text style={S.avT}>{displayName[0].toUpperCase()}</Text>}
             </View>
             <TextInput
               style={S.modalInput}
@@ -134,5 +147,8 @@ const S = StyleSheet.create({
   preview: { width: '100%', height: 180, borderRadius: 16, borderWidth: 1, borderColor: T.border },
   removeMedia: { position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: T.border },
   mediaBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: 1, borderTopColor: T.divider },
-  mediaBtnT: { color: T.link, fontSize: 15, fontWeight: '600' }
+  mediaBtnT: { color: T.link, fontSize: 15, fontWeight: '600' },
+  empty: { padding: 60, alignItems: 'center', gap: 8 },
+  emptyT: { color: T.text, fontSize: 16, fontWeight: '700' },
+  emptySub: { color: T.muted, fontSize: 13 }
 });

@@ -65,7 +65,10 @@ export function AppProvider({ children }) {
       try {
         const [profiles, posts, follows, bookmarks, convos, notifs, comments, likes] = await Promise.all([
           supabase.from('profiles').select('*').limit(500),
-          supabase.from('posts').select('*').order('created_at', { ascending: false }).limit(100),
+          // Soft-deleted posts are hidden by the `posts_read_public` policy for
+          // other users, but the author's own policy lets them through, so
+          // filter explicitly or your deleted posts linger in your feed.
+          supabase.from('posts').select('*').is('deleted_at', null).order('created_at', { ascending: false }).limit(100),
           supabase.from('follows').select('*'),
           supabase.from('bookmarks').select('*').eq('user_id', me),
           supabase.from('conversations').select('*, messages(*)').or(`user_a.eq.${me},user_b.eq.${me}`),
@@ -106,12 +109,20 @@ export function AppProvider({ children }) {
     if (!me) return;
     const sub = supabase.channel('sqawk-rt')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, ({ new: p }) =>
-        setState(s => s.posts.some(x => x.id === p.id) ? s : {
+        // Guard deleted_at: the author's own RLS policy still delivers their
+        // soft-deleted rows over Realtime.
+        (p.deleted_at) ? undefined : setState(s => s.posts.some(x => x.id === p.id) ? s : {
           ...s,
           posts: [{ ...p, userId: p.author_id, ts: p.created_at, likes: 0, comments: [] }, ...s.posts]
         }))
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts' }, ({ new: p }) =>
-        setState(s => ({ ...s, posts: s.posts.map(x => x.id === p.id ? { ...x, ...p, userId: p.author_id, ts: p.created_at } : x) })))
+        setState(s => ({
+          ...s,
+          // A post that was just soft-deleted must leave the feed, not merge.
+          posts: p.deleted_at
+            ? s.posts.filter(x => x.id !== p.id)
+            : s.posts.map(x => x.id === p.id ? { ...x, ...p, userId: p.author_id, ts: p.created_at } : x)
+        })))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, ({ new: c }) =>
         ingestComment(c))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, ({ new: m }) =>
@@ -185,12 +196,26 @@ export function AppProvider({ children }) {
     },
 
     addComment: async (id, text) => {
+      // Optimistic: render the comment at once, then reconcile with the row the
+      // server returns. The temp id is swapped for the real one so the Realtime
+      // echo of that same row dedupes instead of doubling.
+      const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const optimistic = { id: tempId, post_id: id, author_id: me, text, created_at: new Date().toISOString() };
+      setState(s => ({ ...s, posts: s.posts.map(p => p.id === id
+        ? { ...p, comments: [...p.comments, mapComment(optimistic)] } : p) }));
+
       const { data, error } = await supabase.from('comments')
         .insert({ post_id: id, author_id: me, text })
         .select('*').single();
-      if (error) throw error;
+      if (error) {
+        setState(s => ({ ...s, posts: s.posts.map(p => p.id === id
+          ? { ...p, comments: p.comments.filter(c => c.id !== tempId) } : p) }));
+        throw error;
+      }
       setState(s => ({ ...s, posts: s.posts.map(p => p.id === id
-        ? { ...p, comments: p.comments.some(x => x.id === data.id) ? p.comments : [...p.comments, mapComment(data)] }
+        ? { ...p, comments: p.comments.some(x => x.id === data.id)
+            ? p.comments.filter(c => c.id !== tempId)
+            : p.comments.map(c => c.id === tempId ? mapComment(data) : c) }
         : p) }));
     },
 
@@ -213,7 +238,12 @@ export function AppProvider({ children }) {
       const { error } = following
         ? await supabase.from('follows').delete().eq('follower_id', me).eq('followee_id', userId)
         : await supabase.from('follows').insert({ follower_id: me, followee_id: userId });
-      if (error) console.warn('[sqawk] toggleFollow:', error.message);
+      if (error) {
+        setState(s => ({ ...s, follows: following
+          ? [...s.follows, { follower_id: me, followee_id: userId }]
+          : s.follows.filter(x => !(x.follower_id === me && x.followee_id === userId)) }));
+        throw error;
+      }
     },
 
     sendMessage: async (convId, text) => {
