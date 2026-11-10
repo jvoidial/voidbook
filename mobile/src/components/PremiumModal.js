@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStripe } from '@stripe/stripe-react-native';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { payForProduct } from '../lib/payments';
+import { payForProduct, confirmProduct } from '../lib/payments';
 import { theme as T } from '../theme';
 
 const PERKS = [
@@ -22,29 +21,34 @@ export default function PremiumModal({ visible, onClose }) {
   // modal renders in builds without a publishable key.
   const { initPaymentSheet, presentPaymentSheet } = useStripe() || {};
 
-  // Activated once the PaymentIntent succeeds. The entitlement itself is granted
-  // by the `activate_premium` RPC, so the app never writes is_premium directly.
-  const activate = async () => {
-    const { error } = await supabase.rpc('activate_premium');
-    if (error) throw error;
-    await refreshSession();
-  };
-
   const subscribe = async () => {
     if (busy) return;
 
     try {
       setBusy(true);
 
-      const { paid, skipped } = await payForProduct({
+      const { paid, skipped, paymentIntentId } = await payForProduct({
         product: 'sqawk_premium',
         initPaymentSheet,
         presentPaymentSheet,
       });
       if (!paid && !skipped) return; // user cancelled
-      // Without Stripe configured we still grant Premium so it stays testable.
 
-      await activate();
+      if (skipped) {
+        // No publishable key configured. There is no charge to verify, so the
+        // entitlement cannot be granted — telling the user it succeeded would be
+        // a lie. Point them at the configuration instead.
+        Alert.alert(
+          'Payments are not configured',
+          'This build has no Stripe publishable key, so Premium cannot be purchased yet.',
+        );
+        return;
+      }
+
+      // The server verifies the charge with Stripe and grants the entitlement;
+      // the app never writes is_premium itself.
+      await confirmProduct({ product: 'sqawk_premium', paymentIntentId });
+      await refreshSession();
       onClose?.();
       Alert.alert('Welcome to sqawk Premium', 'Your account is now premium.');
     } catch (e) {

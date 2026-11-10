@@ -65,13 +65,15 @@ chat), there is no conversation to append it to, so `AppContext` refetches that
 conversation by id before inserting. RLS makes this safe: a non-participant's
 fetch returns nothing and the message is dropped.
 
-## Stripe is optional
+## Stripe is optional to build, but Premium needs a payment to unlock
 
 `src/lib/stripe.js` reads `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY`. With no key the
-app skips `StripeProvider` and the Premium modal falls back to the
-`activate_premium` RPC, so development builds and CI work without a payment
-account. The `@stripe/stripe-react-native` config plugin must be passed `{}` —
-a bare string crashes it on `props.merchantIdentifier`.
+app skips `StripeProvider` and the purchase flows say payments are not
+configured — they do **not** grant an entitlement they cannot verify. The
+`@stripe/stripe-react-native` config plugin must be passed `{}` — a bare string
+crashes it on `props.merchantIdentifier`. Both build workflows pass
+`EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` into the job env so the key is baked into
+the bundle at build time; without that the shipped APK has no Stripe.
 
 `src/lib/payments.js` holds the one PaymentSheet flow, shared by Premium and the
 $1 business listing. `useStripe()` is context-free (it only wraps native
@@ -81,6 +83,35 @@ methods and `payForProduct` short-circuits on the missing key instead.
 Product prices live in the `create-payment-intent` edge function's `PRODUCTS`
 table, never in the client: `{ product: 'business_listing' }` is a name, not an
 amount, so a tampered request cannot buy Premium for a cent.
+
+## Premium is granted only by a verified payment
+
+There is exactly one path to `is_premium = true`, and it runs on the server:
+
+1. The client calls `create-payment-intent` with a product name.
+2. Stripe's sheet collects the card; the client gets back a PaymentIntent id.
+3. The client calls the same function with `{ action: 'confirm', paymentIntentId }`.
+4. The function retrieves the intent from Stripe and checks it is `succeeded`,
+   that its `supabase_user_id` metadata is the caller, and that its `product` is
+   `sqawk_premium`. Only then does it call `grant_premium_entitlement` with the
+   service role key.
+
+`grant_premium_entitlement` has `EXECUTE` revoked from `anon` and
+`authenticated`, so PostgREST cannot reach it — otherwise it would be as open as
+the RPC it replaced. `premium_purchases.payment_intent_id` is the primary key, so
+a replayed confirm is a no-op rather than a second grant.
+
+This closed a real hole: migration 009 shipped `activate_premium()`, which
+granted Premium to any signed-in caller with no payment at all. Migration 010
+drops it. Do not reintroduce a client-callable entitlement grant.
+
+## Production setup
+
+`finalize-production.sh` is the operator script: it stores the Stripe secrets,
+applies migrations, deploys the edge function, sets the Actions secret and
+dispatches a build. It dispatches `workflow_dispatch` rather than pushing an
+empty commit, because both workflows filter on `paths: mobile/**` and an empty
+commit would not match.
 
 ## Android package name is frozen
 

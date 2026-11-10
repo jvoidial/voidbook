@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useStripe } from '@stripe/stripe-react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { payForProduct } from '../lib/payments';
+import { payForProduct, confirmProduct } from '../lib/payments';
 import { theme as T } from '../theme';
 
 const TABS = ['Businesses', 'Communities'];
@@ -62,29 +62,37 @@ export default function LocalScreen() {
       // A business listing costs $1. Collect it before inserting so a listing is
       // never created unpaid. With Stripe unconfigured `skipped` is true and the
       // listing proceeds, keeping the flow usable in dev builds.
+      let paid = false;
       if (tab === 'Businesses') {
-        const { paid, skipped } = await payForProduct({
+        const result = await payForProduct({
           product: 'business_listing',
           initPaymentSheet,
           presentPaymentSheet,
         });
-        if (!paid && !skipped) return; // user cancelled
+        if (!result.paid && !result.skipped) return; // user cancelled
+        if (result.paid) {
+          // Ask the server to verify the charge before recording it, so `paid`
+          // reflects a confirmed payment rather than the sheet's word.
+          await confirmProduct({ product: 'business_listing', paymentIntentId: result.paymentIntentId });
+          paid = true;
+        }
       }
 
-      // `paid` records that the listing fee step completed; the authoritative
-      // signal is the Stripe PaymentIntent captured above.
+      // `paid` reflects an actual completed charge, not just that the step ran.
       const payload = {
         owner_id: user.id,
         name: form.name.trim(),
         city: form.city.trim(),
         description: form.description.trim(),
-        ...(tab === 'Businesses' ? { category: form.category, paid: true } : {})
+        ...(tab === 'Businesses' ? { category: form.category, paid } : {})
       };
       const { error } = await supabase.from(table).insert(payload);
       if (error) throw error;
       setModal(false);
       await load();
-      if (tab === 'Businesses') Alert.alert('Listed', 'Your business is live.');
+      if (tab === 'Businesses') {
+        Alert.alert('Listed', paid ? 'Your business is live.' : 'Your business is live (listing fee not charged — payments are not configured).');
+      }
     } catch (e) {
       Alert.alert('Could not save', e.message);
     } finally {
