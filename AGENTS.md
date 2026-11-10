@@ -18,10 +18,11 @@ The app ships as **sqawk**, a strict black-and-white social client.
 - `supabase/tests/` — a reproducible Postgres + PostgREST harness. `./supabase/tests/run.sh`
   applies every migration, runs the RLS tests and the supabase-js e2e. Needs Docker.
 - `.github/workflows/android-build.yml` — release APK on push to `main` (paths: `mobile/**`).
-- `.github/workflows/ios-build.yml` — IPA on push to `main` (paths: `mobile/**`). Skipped
-  with a warning when the Apple signing secrets are absent, so Android releases
-  never depend on them. Tags iOS releases `ios-v1.0.<n>` so they do not collide
-  with the Android `v1.0.<n>` tag from the same run number.
+- `.github/workflows/ios-build.yml` — unsigned `.ipa` for sideloading on push to
+  `main` (paths: `mobile/**`). Builds with `CODE_SIGNING_ALLOWED=NO` and packages
+  `Payload/` into a zip renamed `.ipa`, so it needs no Apple account or secrets and
+  no longer skips itself when signing secrets are absent. The sideloading tool
+  signs it at install time; see `docs/SIDELOADING.md`.
 
 ## Release tags must not use `github.run_number`
 
