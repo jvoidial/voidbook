@@ -129,16 +129,6 @@ jobs:
           echo "Build failed after 2 attempts."
           exit 1
 
-      - name: Stage APK
-        run: |
-          mkdir -p artifacts
-          cp mobile/android/app/build/outputs/apk/release/app-release.apk artifacts/sqawk.apk
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sqawk-android-apk
-          path: artifacts/sqawk.apk
-
       - name: Compute release tag
         id: version
         if: github.ref == 'refs/heads/main'
@@ -146,17 +136,52 @@ jobs:
         # reset it to 1 — which made this job silently re-publish the existing
         # `v1.0.1` release (clobbering its asset) instead of creating a new one.
         # Derive the next tag from the tags that already exist instead.
+        #
+        # The newest tag is reused when it already points at this commit: a re-run
+        # must not bump the version, and must not orphan the iOS asset that is
+        # attached to the same release.
         run: |
-          latest=$(git ls-remote --tags --refs origin 'v1.0.*' \
-            | sed 's#.*refs/tags/v1.0\.##' | grep -E '^[0-9]+$' | sort -n | tail -1)
-          next=$(( ${latest:-0} + 1 ))
-          echo "tag=v1.0.${next}" >> "$GITHUB_OUTPUT"
-          echo "Releasing v1.0.${next} (previous highest was v1.0.${latest:-none})."
+          newest=$(git ls-remote --tags --refs origin 'v1.0.*' \
+            | sed 's#.*refs/tags/v1.0\.##' | grep -E '^[0-9]+$' | sort -n | tail -1 || true)
+          tag="v1.0.$(( ${newest:-0} + 1 ))"
+          if [ -n "$newest" ]; then
+            sha=$(git ls-remote --tags --refs origin "v1.0.$newest" | awk '{print $1}' || true)
+            if [ "$sha" = "$GITHUB_SHA" ]; then
+              tag="v1.0.$newest"
+            fi
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Releasing $tag (highest existing tag: v1.0.${newest:-none})."
 
+      - name: Compute artifact name
+        id: names
+        if: github.ref == 'refs/heads/main'
+        # Stamp the tag, short commit and date so a download is traceable back to
+        # the build that produced it.
+        run: |
+          base="sqawk-${{ steps.version.outputs.tag }}-${GITHUB_SHA:0:7}-$(date -u +%Y%m%d)"
+          echo "apk=${base}.apk" >> "$GITHUB_OUTPUT"
+          echo "Artifact: ${base}.apk"
+
+      - name: Stage APK
+        run: |
+          mkdir -p artifacts
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk \
+             "artifacts/${{ steps.names.outputs.apk || 'sqawk.apk' }}"
+
+      # Android creates the release and owns the tag; the iOS workflow waits for
+      # this release and adds its asset to the same one. Exactly one workflow may
+      # create a given tag, or the two would race and land on separate releases.
       - uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: sqawk ${{ steps.version.outputs.tag }}
           files: artifacts/*.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.names.outputs.apk || 'sqawk.apk' }}
+          path: artifacts/*.apk
+          if-no-files-found: error
 

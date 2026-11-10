@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-ios-unsigned:
@@ -122,3 +122,59 @@ jobs:
           path: ${{ runner.temp }}/sqawk-unsigned.ipa
           if-no-files-found: error
           retention-days: 30
+
+      # ── Attach the IPA to the release the Android workflow created ──────────
+      #
+      # Android owns the tag. It creates the release roughly 10 minutes in; this
+      # job takes about 20, so by the time we get here the release almost always
+      # exists and this loop exits on the first try. It is here for the case where
+      # iOS is dispatched on its own, or Android is slow or still building.
+      - name: Wait for the Android release
+        id: release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Only accept a release whose tag points at this exact commit. Otherwise a
+          # previous commit's release would match and the IPA would be attached to
+          # the wrong version.
+          for i in $(seq 1 60); do
+            tag=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 20 \
+              --json tagName,createdAt \
+              --jq '[.[] | select(.tagName | test("^v1[.]0[.][0-9]+$"))] | sort_by(.createdAt) | last | .tagName' || true)
+            if [ -n "$tag" ] && [ "$tag" != "null" ]; then
+              sha=$(git ls-remote origin "refs/tags/$tag" | awk '{print $1}' || true)
+              peeled=$(git ls-remote origin "refs/tags/$tag^{}" | awk '{print $1}' || true)
+              if [ -n "$peeled" ]; then sha="$peeled"; fi
+              if [ "$sha" = "$GITHUB_SHA" ]; then
+                echo "Attaching the IPA to $tag (points at this commit)."
+                echo "tag=$tag" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              echo "Newest release $tag is for ${sha:0:7}, not this commit (${GITHUB_SHA:0:7}); waiting…"
+            else
+              echo "No release yet (attempt $i/60); waiting 30s…"
+            fi
+            sleep 30
+          done
+          echo "::warning::No release for this commit appeared within 30 minutes; the IPA is available as a build artifact only."
+
+      - name: Compute artifact name
+        id: names
+        if: steps.release.outputs.tag != ''
+        run: |
+          base="sqawk-${{ steps.release.outputs.tag }}-${GITHUB_SHA:0:7}-$(date -u +%Y%m%d)"
+          echo "ipa=${base}-unsigned.ipa" >> "$GITHUB_OUTPUT"
+          echo "Artifact: ${base}-unsigned.ipa"
+
+      - name: Stage IPA for release
+        if: steps.release.outputs.tag != ''
+        run: |
+          mkdir -p artifacts
+          cp "$RUNNER_TEMP/sqawk-unsigned.ipa" "artifacts/${{ steps.names.outputs.ipa }}"
+
+      - uses: softprops/action-gh-release@v2
+        if: steps.release.outputs.tag != ''
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          files: artifacts/*.ipa

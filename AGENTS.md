@@ -31,16 +31,37 @@ is split, renamed or added. That made the release step re-publish the existing
 `v1.0.1` release and clobber its asset instead of creating a new one — the APK
 looked missing from the Releases tab even though the build succeeded.
 
-Both workflows now derive the next tag from the tags that already exist:
+Tags are derived from the tags that already exist instead:
 
 ```bash
-latest=$(git ls-remote --tags --refs origin 'v1.0.*' \
-  | sed 's#.*refs/tags/v1.0\.##' | grep -E '^[0-9]+$' | sort -n | tail -1)
-echo "tag=v1.0.$(( ${latest:-0} + 1 ))" >> "$GITHUB_OUTPUT"
+newest=$(git ls-remote --tags --refs origin 'v1.0.*' \
+  | sed 's#.*refs/tags/v1.0\.##' | grep -E '^[0-9]+$' | sort -n | tail -1 || true)
+tag="v1.0.$(( ${newest:-0} + 1 ))"
 ```
 
 Keep the `if: github.ref == 'refs/heads/main'` guard on the release step: without
 it a `workflow_dispatch` on a feature branch would publish a release.
+
+### Only Android creates the tag
+
+Both workflows attach assets to **one** release, and auto-increment is racy across
+two workflows: if each computed `newest + 1` independently they would land on
+different releases, because Android creates its tag mid-run while iOS is still
+building. So the roles are split:
+
+- **Android owns the tag.** It creates the release (about 10 minutes in) and
+  uploads the APK.
+- **iOS waits** for a release whose tag points at *this commit*, then attaches the
+  IPA with `softprops/action-gh-release` and the same `tag_name`. It never creates
+  a tag. Waiting on the commit — not just "the newest release" — stops a previous
+  version's release being matched.
+- The iOS workflow needs `permissions: contents: write` for this. It is not
+  optional; the asset upload 403s without it.
+
+Android reuses the newest tag when that tag already points at the current commit,
+so re-running a workflow does not bump the version or orphan the other asset.
+Ordering is by build duration, not by `needs:`; the two workflows are independent
+and iOS is the slower one, so it always arrives second.
 
 ## PostgREST embeds need a disambiguation hint
 

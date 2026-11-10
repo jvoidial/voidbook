@@ -1,6 +1,6 @@
 # Installing SQWAK.app on an iPhone (unsigned IPA)
 
-The `Build sqawk (iOS, unsigned IPA)` workflow produces `sqawk-unsigned.ipa`,
+The `Build sqawk (iOS, unsigned IPA)` workflow produces an unsigned IPA,
 an unsigned build of the app. "Unsigned" means it carries no Apple signature, so
 iOS will not launch it until something signs it with a certificate — either a
 sideloading tool using your own Apple ID, or TrollStore, which installs unsigned
@@ -14,15 +14,20 @@ people. See [Caveats](#caveats) at the end.
 
 ## 1. Download the IPA
 
-1. Open the repository's **Actions** tab.
-2. Pick the latest **Build sqawk (iOS, unsigned IPA)** run (green tick).
-3. Under **Artifacts**, download `sqawk-unsigned.ipa` and unzip it if your
-   browser saved it as a `.zip`.
+The unsigned `.ipa` is attached to the **same release as the `.apk`**, so both
+files are on one page:
 
-Artifacts expire after 30 days, so re-run the workflow if the download is gone.
+1. Open the repository's **Releases** page.
+2. Pick the latest `sqawk v1.0.NN` release.
+3. Download the `.ipa` (named `sqawk-v1.0.NN-<commit>-<date>-unsigned.ipa`). The
+   `.apk` for Android is on the same release.
 
-Only use the IPA from your own Actions run. An unsigned IPA can be modified by
-anyone before it reaches you, and there is no signature to detect that.
+The file is also kept in the **Actions** run's artifacts for 30 days, so if the
+release download is gone you can re-run the workflow.
+
+Only use the IPA from your own release or Actions run. An unsigned IPA can be
+modified by anyone before it reaches you, and there is no signature to detect
+that.
 
 ---
 
@@ -64,7 +69,7 @@ installing anything:
 1. Install TrollStore using the installer matching your version (for example
    TrollInstallerX or TrollRestore). The repository above links the current
    method for each version; follow it exactly, as the steps differ per version.
-2. Open TrollStore, tap the **+** icon, and choose `sqawk-unsigned.ipa`.
+2. Open TrollStore, tap the **+** icon, and choose the `sqawk-*-unsigned.ipa` you downloaded.
 3. It installs immediately and never expires.
 
 If your version is not on the list, use SideStore or Sideloadly instead.
@@ -84,7 +89,7 @@ the fork that refreshes on-device.
 2. In the app, sign in with your **Apple ID**. A free account is fine. Two-factor
    auth is supported; if you use an app-specific password, generate one at
    <https://appleid.apple.com>.
-3. Use **+** / **My Apps → +** and select `sqawk-unsigned.ipa`.
+3. Use **+** / **My Apps → +** and select the `sqawk-*-unsigned.ipa` you downloaded.
 4. The app installs and appears on your home screen.
 
 **The 7-day rule.** A free Apple ID signs apps for 7 days. After that the app
@@ -98,7 +103,7 @@ sideloaded apps installed at once.
 
 1. Install Sideloadly from <https://sideloadly.io> on Windows or macOS.
 2. Connect your iPhone by cable and trust the computer.
-3. Drag `sqawk-unsigned.ipa` into Sideloadly.
+3. Drag the `sqawk-*-unsigned.ipa` you downloaded into Sideloadly.
 4. Enter your Apple ID, click **Start**, and wait for it to sign and install.
 5. The app appears on your home screen; it expires in 7 days like the above.
 
