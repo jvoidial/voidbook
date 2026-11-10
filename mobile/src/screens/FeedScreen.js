@@ -58,9 +58,14 @@ export default function FeedScreen() {
 
         <Ionicons name="logo-twitter" size={28} color={T.text} />
 
-        <TouchableOpacity onPress={() => nav.navigate('Settings')}>
-          <Ionicons name="sparkles" size={24} color={T.text} />
-        </TouchableOpacity>
+        <View style={S.topActions}>
+          <TouchableOpacity onPress={() => nav.navigate('StartLive')} hitSlop={10}>
+            <Ionicons name="radio-outline" size={24} color={T.text} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => nav.navigate('Settings')} hitSlop={10}>
+            <Ionicons name="sparkles" size={24} color={T.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {!ready ? (
@@ -143,6 +148,7 @@ export default function FeedScreen() {
 const S = StyleSheet.create({
   c: { flex: 1, backgroundColor: T.bg },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: T.divider },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   av: { width: 32, height: 32, borderRadius: 16, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avImg: { width: '100%', height: '100%' },
   avT: { color: T.text, fontWeight: 'bold', fontSize: 14 },

@@ -8,8 +8,21 @@ The app ships as **sqawk**, a strict black-and-white social client.
 - `mobile/` — the app. `mobile/src/` holds `screens/`, `components/`, `context/`, `lib/`.
 - `mobile/src/screens/auth/` — Welcome, SignIn, SignUp, ResetPassword.
 - `supabase/migrations/` — numbered, idempotent SQL. Apply in order in the SQL editor.
-- `.github/workflows/sqawk.yml` — builds the release APK on every push to `main`
-  and publishes it to a GitHub Release.
+- `supabase/functions/daily-token/` — Deno edge function that mints Daily.co room
+  tokens. Deploy with `supabase functions deploy daily-token` after
+  `supabase secrets set DAILY_API_KEY=...`.
+- `.github/workflows/build-all.yml` — builds **both** platforms on every push to
+  `main`: `build-android` (release APK) and `build-ios` (IPA). Publishes both to
+  the same GitHub Release. The iOS job is skipped with a warning when the Apple
+  signing secrets are absent, so Android releases never depend on them.
+
+## Android package name is frozen
+
+`mobile/app.json` → `android.package` and `ios.bundleIdentifier` must stay
+`com.voidial.voidbook`. Changing it breaks in-place updates for existing
+installs (Android rejects a differently-signed/signed-differently package as an
+update; iOS treats it as a new app). The **display** name is `SQWAK.app`; only
+the identifier is locked. Do not "clean up" the identifier to match the brand.
 
 ## Validation: do not trust a syntax check
 
@@ -81,6 +94,37 @@ filesystem (relative -> real file, bare -> `node_modules/<pkg>` exists).
   rejected by RLS on any post you did not author. Echo is now a row in `reposts`
   (migration `008`), with a `SECURITY DEFINER` trigger keeping `posts.shares` in
   step. Model any new toggle the same way.
+  - **Local / Marketplace tables** live in `009`. `businesses`, `communities` and
+    `marketplace_listings` are all owner-scoped: `select` is public, writes are
+    `auth.uid() = owner_id` (or `provider_id` for listings). The client embeds the
+    provider with `select('*, provider:profiles(*)')`, so the FK must be named
+    `provider_id` for that alias to resolve.
+  - **`activate_premium()` is the only self-service privilege path.** The
+    `protect_profile_privileges` guard rejects `is_premium` writes even from a
+    `SECURITY DEFINER` function, because `auth.uid()` still returns the caller
+    inside it. The RPC sets a transaction-local GUC (`app.allow_privilege_change`)
+    that the guard honours. A client cannot set that GUC through PostgREST, so the
+    column stays read-only everywhere else. Any future self-service entitlement
+    must use the same escape hatch, not a looser guard.
+
+## Live streaming (Daily.co)
+
+- RTC uses **Daily.co**, never LiveKit — LiveKit's Gradle/Kotlin integration broke
+  the Android build. Packages: `@daily-co/react-native-daily-js`,
+  `@daily-co/react-native-webrtc`, and the prebuild plugin
+  `@daily-co/config-plugin-rn-daily-js` (declared in `app.json` `plugins`). Adding
+  a package without its config plugin leaves the native side unlinked.
+- The Daily **API key never reaches the client**. The app calls the `daily-token`
+  edge function, which authenticates the caller from their Supabase JWT and mints
+  a meeting token. Never embed `DAILY_API_KEY` in `EXPO_PUBLIC_*`.
+- `LiveRoomScreen` owns the call object lifecycle: create on mount, `leave()` then
+  `destroy()` on unmount. `DailyMediaView` reads tracks from
+  `participant.tracks.video.persistentTrack` (the top-level `participant.video`
+  track is deprecated).
+- Camera/mic permissions come from the `expo-camera` and `expo-image-picker`
+  config plugins in `app.json` (`CAMERA`, `RECORD_AUDIO` on Android; the
+  `NS*UsageDescription` keys on iOS). A feature needing the camera must be listed
+  there or prebuild will not emit the permission.
 
 ## Client conventions
 

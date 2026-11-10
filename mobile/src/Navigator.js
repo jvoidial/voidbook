@@ -15,7 +15,8 @@ import SignUpScreen from './screens/auth/SignUpScreen';
 import ResetPasswordScreen from './screens/auth/ResetPasswordScreen';
 import FeedScreen from './screens/FeedScreen';
 import SearchScreen from './screens/SearchScreen';
-import NotificationsScreen from './screens/NotificationsScreen';
+import LocalScreen from './screens/LocalScreen';
+import MarketplaceScreen from './screens/MarketplaceScreen';
 import MessagesScreen from './screens/MessagesScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import SettingsScreen from './screens/SettingsScreen';
@@ -24,6 +25,8 @@ import UserProfileScreen from './screens/UserProfileScreen';
 import HashtagScreen from './screens/HashtagScreen';
 import SavedScreen from './screens/SavedScreen';
 import AdminScreen from './screens/AdminScreen';
+import StartLiveScreen from './screens/StartLiveScreen';
+import LiveRoomScreen from './screens/LiveRoomScreen';
 
 const Tab = createBottomTabNavigator();
 const RootStack = createNativeStackNavigator();
@@ -32,10 +35,11 @@ const AuthStack = createNativeStackNavigator();
 const navTheme = { ...DarkTheme, colors: { ...DarkTheme.colors, background: T.bg, card: T.bg, border: T.border, text: T.text, primary: T.accent } };
 
 const ICONS = {
-  Home:          ['home', 'home-outline'], // X uses solid when active
-  Search:        ['search', 'search-outline'],
-  Notifications: ['notifications', 'notifications-outline'],
-  Messages:      ['mail', 'mail-outline']
+  Home:        ['home', 'home-outline'], // X uses solid when active
+  Search:      ['search', 'search-outline'],
+  Local:       ['storefront', 'storefront-outline'],
+  Marketplace: ['pricetags', 'pricetags-outline'],
+  Messages:    ['mail', 'mail-outline']
 };
 
 function AuthFlow() {
@@ -51,7 +55,6 @@ function AuthFlow() {
 function MainTabs() {
   const { state } = useApp();
   const { user } = useAuth();
-  const unreadNotifs = (state.notifications || []).filter(n => !n.read).length;
   const unreadMsgs = (state.conversations || []).reduce((acc, c) => acc + c.messages.filter(m => m.from !== user?.id && !m.read).length, 0);
 
   return (
@@ -68,10 +71,12 @@ function MainTabs() {
     })}>
       <Tab.Screen name="Home" component={FeedScreen} />
       <Tab.Screen name="Search" component={SearchScreen} />
-      <Tab.Screen name="Notifications" component={NotificationsScreen} options={{ tabBarBadge: unreadNotifs > 0 ? unreadNotifs : undefined, tabBarBadgeStyle: { backgroundColor: T.accent, color: '#000' } }} />
+      <Tab.Screen name="Local" component={LocalScreen} />
+      <Tab.Screen name="Marketplace" component={MarketplaceScreen} />
       <Tab.Screen name="Messages" component={MessagesScreen} options={{ tabBarBadge: unreadMsgs > 0 ? unreadMsgs : undefined, tabBarBadgeStyle: { backgroundColor: T.accent, color: '#FFF' } }} />
       
       {/* Hidden Tabs (Accessible via navigation, but not shown on bottom bar) */}
+      <Tab.Screen name="Notifications" component={NotificationsScreen} options={{ tabBarButton: () => null }} />
       <Tab.Screen name="Profile" component={ProfileScreen} options={{ tabBarButton: () => null }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarButton: () => null }} />
     </Tab.Navigator>
@@ -87,6 +92,8 @@ function Root() {
       <RootStack.Screen name="Hashtag" component={HashtagScreen} />
       <RootStack.Screen name="Saved" component={SavedScreen} />
       <RootStack.Screen name="Admin" component={AdminScreen} />
+      <RootStack.Screen name="StartLive" component={StartLiveScreen} options={{ presentation: 'modal' }} />
+      <RootStack.Screen name="LiveRoom" component={LiveRoomScreen} options={{ gestureEnabled: false }} />
     </RootStack.Navigator>
   );
 }

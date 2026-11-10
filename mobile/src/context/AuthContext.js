@@ -88,6 +88,13 @@ export function AuthProvider({ children }) {
       user, session, ready, error, profile, recovering,
       clearRecovery: () => setRecovering(false),
       refreshProfile: () => loadProfile(user?.id),
+      // Refresh the auth session (new JWT claims) then re-read the profile
+      // row. Used after a privilege change such as premium activation so the
+      // UI reflects the new state without a full reload.
+      refreshSession: async () => {
+        await supabase.auth.refreshSession();
+        await loadProfile(user?.id);
+      },
       signUp: async ({ email, password, name, handle }) => {
         setError(null);
         // Mirror the DB constraint (^[a-z0-9_]{3,30}$) so the signup trigger

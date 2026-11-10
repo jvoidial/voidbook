@@ -1,30 +1,39 @@
 {
   "expo": {
-    "name": "sqawk",
+    "name": "SQWAK.app",
     "slug": "sqawk",
     "scheme": "sqawk",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#000000",
     "android": {
-      "package": "com.sqawk.app",
-      "versionCode": 1,
+      "package": "com.voidial.voidbook",
+      "versionCode": 2,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.jpg",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
+      },
+      "permissions": ["CAMERA", "RECORD_AUDIO"],
+      "newArchEnabled": false
+    },
+    "ios": {
+      "bundleIdentifier": "com.voidial.voidbook",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "SQWAK.app uses the camera for photos and live video.",
+        "NSMicrophoneUsageDescription": "SQWAK.app uses the microphone for audio spaces and live video.",
+        "NSPhotoLibraryUsageDescription": "SQWAK.app lets you choose a photo to post."
       },
       "newArchEnabled": false
     },
     "splash": {
-      "image": "./assets/icon.jpg",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
-    "icon": "./assets/icon.jpg",
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "icon": "./assets/icon.png",
+    "assetBundlePatterns": ["**/*"],
     "plugins": [
       [
         "expo-build-properties",
@@ -33,6 +42,9 @@
             "compileSdkVersion": 34,
             "targetSdkVersion": 34,
             "minSdkVersion": 24
+          },
+          "ios": {
+            "deploymentTarget": "13.4"
           }
         }
       ],
@@ -40,14 +52,20 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "sqawk uses photos.",
-          "cameraPermission": "sqawk uses camera."
+          "photosPermission": "SQWAK.app uses photos.",
+          "cameraPermission": "SQWAK.app uses the camera."
         }
-      ]
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "SQWAK.app uses the camera for photos and live video.",
+          "microphonePermission": "SQWAK.app uses the microphone for audio spaces and live video.",
+          "recordAudioAndroid": true
+        }
+      ],
+      "@daily-co/config-plugin-rn-daily-js"
     ],
-    "newArchEnabled": false,
-    "ios": {
-      "newArchEnabled": false
-    }
+    "newArchEnabled": false
   }
 }

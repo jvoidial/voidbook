@@ -1,6 +1,8 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Alert, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 import { theme as T } from '../theme';
 
 const PERKS = [
@@ -11,10 +13,25 @@ const PERKS = [
 ];
 
 export default function PremiumModal({ visible, onClose }) {
-  const subscribe = () => Alert.alert(
-    'sqawk Premium',
-    'Payments are not live yet — check back soon.'
-  );
+  const { refreshSession } = useAuth();
+  const [busy, setBusy] = useState(false);
+
+  const subscribe = async () => {
+    if (busy) return;
+    try {
+      setBusy(true);
+      const { error } = await supabase.rpc('activate_premium');
+      if (error) throw error;
+      // Refresh the session + profile so the blue checkmark appears instantly.
+      await refreshSession();
+      onClose?.();
+      Alert.alert('Welcome to sqawk Premium', 'Your account is now premium.');
+    } catch (e) {
+      Alert.alert('Subscription failed', e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -47,8 +64,10 @@ export default function PremiumModal({ visible, onClose }) {
             ))}
           </ScrollView>
 
-          <TouchableOpacity style={S.cta} onPress={subscribe}>
-            <Text style={S.ctaT}>Subscribe — $8/month</Text>
+          <TouchableOpacity style={[S.cta, busy && { opacity: 0.6 }]} onPress={subscribe} disabled={busy}>
+            {busy
+              ? <ActivityIndicator color={T.bg} />
+              : <Text style={S.ctaT}>Subscribe — $8/month</Text>}
           </TouchableOpacity>
           <TouchableOpacity style={S.later} onPress={onClose}>
             <Text style={S.laterT}>Maybe later</Text>
