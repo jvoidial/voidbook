@@ -15,6 +15,12 @@ The app ships as **sqawk**, a strict black-and-white social client.
   Stripe Customer + PaymentIntent for Premium. Deploy with
   `supabase functions deploy create-payment-intent` after
   `supabase secrets set STRIPE_SECRET_KEY=... STRIPE_PUBLISHABLE_KEY=...`.
+- `supabase/functions/stripe-webhook/` — Deno edge function that grants Premium
+  when Stripe reports `payment_intent.succeeded`. Deploy with
+  `supabase functions deploy stripe-webhook --no-verify-jwt` after
+  `supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...`. See
+  "Premium is granted only by a verified payment" for why the flag is needed and
+  why it must not be used on `create-payment-intent`.
 - `supabase/tests/` — a reproducible Postgres + PostgREST harness. `./supabase/tests/run.sh`
   applies every migration, runs the RLS tests and the supabase-js e2e. Needs Docker.
 - `.github/workflows/android-build.yml` — release APK on push to `main` (paths: `mobile/**`).
@@ -126,6 +132,31 @@ a replayed confirm is a no-op rather than a second grant.
 This closed a real hole: migration 009 shipped `activate_premium()`, which
 granted Premium to any signed-in caller with no payment at all. Migration 010
 drops it. Do not reintroduce a client-callable entitlement grant.
+
+### The webhook is a second, independent path
+
+Step 4 is the only path the *client* can trigger, and it is enough for a normal
+purchase. It is not enough on its own: if the app is closed, crashes, or loses
+network after Stripe charges the card but before step 4 runs, the money is taken
+and Premium is never granted. `stripe-webhook` closes that gap. Stripe delivers
+`payment_intent.succeeded` and retries on failure, so the grant happens anyway.
+
+It grants through the same `grant_premium_entitlement`, so the idempotency
+argument still holds: whichever of the two paths arrives second is a no-op.
+
+The webhook is deployed with `--no-verify-jwt` and that is load-bearing:
+
+- Stripe cannot send a Supabase JWT, so the platform check would reject every
+  delivery with 401 and no payment would ever be granted.
+- Authentication is Stripe's signature instead — `constructEventAsync` against
+  `STRIPE_WEBHOOK_SECRET`, checked before the body is parsed.
+- **Do not add this flag to `create-payment-intent`.** That function identifies
+  the caller *from* the JWT; disabling verification there removes the check that
+  ties a Stripe customer to a real user. The two functions need opposite settings,
+  which is why the flag belongs on the deploy command and not in a shared config.
+
+Both functions are reachable without a JWT by design; neither trusts the request
+body for identity or price.
 
 ## Production setup
 
