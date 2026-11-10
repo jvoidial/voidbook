@@ -11,14 +11,14 @@ const mapMessage = (m) => ({ ...m, from: m.sender_id, ts: m.created_at });
 const mapNotification = (n) => ({ ...n, userId: n.actor_id, type: n.kind, ts: n.created_at });
 
 const EMPTY = {
-  users: [], profiles: {}, posts: [], follows: [], bookmarks: [], myLikes: [],
+  users: [], profiles: {}, posts: [], follows: [], bookmarks: [], myLikes: [], myReposts: [],
   conversations: [], notifications: [], loadError: null,
   // Present for the not-yet-migrated placeholder screens (Groups, Marketplace,
   // Friends) so they render an empty list instead of throwing.
   groups: [], listings: [], friends: { friends: [], requests: [], suggestions: [] },
 };
 
-function normalizePosts(posts, comments, likes, me) {
+function normalizePosts(posts, comments, likes, reposts, me) {
   const byPost = {};
   for (const c of comments) (byPost[c.post_id] ||= []).push(mapComment(c));
 
@@ -29,15 +29,26 @@ function normalizePosts(posts, comments, likes, me) {
     if (l.user_id === me) mine.push(l.post_id);
   }
 
+  // `posts.shares` is a trigger-maintained counter, but the source of truth is
+  // the reposts table, so count from there the same way we do for likes.
+  const repostCounts = {};
+  const myReposts = [];
+  for (const r of reposts) {
+    repostCounts[r.post_id] = (repostCounts[r.post_id] || 0) + 1;
+    if (r.user_id === me) myReposts.push(r.post_id);
+  }
+
   return {
     posts: posts.map(p => ({
       ...p,
       userId: p.author_id,
       ts: p.created_at,
       likes: counts[p.id] || 0,
+      shares: repostCounts[p.id] || 0,
       comments: byPost[p.id] || []
     })),
-    myLikes: mine
+    myLikes: mine,
+    myReposts
   };
 }
 
@@ -63,7 +74,7 @@ export function AppProvider({ children }) {
     let alive = true;
     (async () => {
       try {
-        const [profiles, posts, follows, bookmarks, convos, notifs, comments, likes] = await Promise.all([
+        const [profiles, posts, follows, bookmarks, convos, notifs, comments, likes, reposts] = await Promise.all([
           supabase.from('profiles').select('*').limit(500),
           // Soft-deleted posts are hidden by the `posts_read_public` policy for
           // other users, but the author's own policy lets them through, so
@@ -74,12 +85,13 @@ export function AppProvider({ children }) {
           supabase.from('conversations').select('*, messages(*)').or(`user_a.eq.${me},user_b.eq.${me}`),
           supabase.from('notifications').select('*').eq('user_id', me).order('created_at', { ascending: false }).limit(50),
           supabase.from('comments').select('*').order('created_at', { ascending: true }).limit(1000),
-          supabase.from('likes').select('*')
+          supabase.from('likes').select('*'),
+          supabase.from('reposts').select('*')
         ]);
         if (!alive) return;
 
         const profileRows = profiles.data || [];
-        const { posts: feed, myLikes } = normalizePosts(posts.data || [], comments.data || [], likes.data || [], me);
+        const { posts: feed, myLikes, myReposts } = normalizePosts(posts.data || [], comments.data || [], likes.data || [], reposts.data || [], me);
 
         setState({
           ...EMPTY,
@@ -90,6 +102,7 @@ export function AppProvider({ children }) {
           follows: follows.data || [],
           bookmarks: (bookmarks.data || []).map(b => b.post_id),
           myLikes,
+          myReposts,
           conversations: (convos.data || []).map(c => ({
             id: c.id,
             withUserId: c.user_a === me ? c.user_b : c.user_a,
@@ -123,9 +136,17 @@ export function AppProvider({ children }) {
         setState(s => ({
           ...s,
           // A post that was just soft-deleted must leave the feed, not merge.
+          // Merge only the columns the row actually owns: `likes`, `shares` and
+          // `comments` are client-derived (counted from their own tables), and
+          // `posts.likes`/`posts.shares` are stale columns, so spreading the
+          // whole row here would clobber the real counts with 0.
           posts: p.deleted_at
             ? s.posts.filter(x => x.id !== p.id)
-            : s.posts.map(x => x.id === p.id ? { ...x, ...p, userId: p.author_id, ts: p.created_at } : x)
+            : s.posts.map(x => x.id === p.id ? {
+                ...x,
+                content: p.content, media_url: p.media_url, media_type: p.media_type,
+                audience: p.audience, edited_at: p.edited_at, deleted_at: p.deleted_at
+              } : x)
         })))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, ({ new: c }) =>
         ingestComment(c))
@@ -200,12 +221,30 @@ export function AppProvider({ children }) {
       }
     },
 
+    // Echo is a per-user toggle backed by the `reposts` table, the same shape as
+    // `likes`. It must NOT update `posts.shares` directly: `posts_update_self`
+    // only lets the author write a post row, so reposting someone else's post
+    // would be rejected by RLS. A DB trigger keeps `posts.shares` in step.
     sharePost: async (id) => {
-      const cur = stateRef.current.posts.find(p => p.id === id);
-      const prevShares = cur?.shares || 0;
-      patchPost(id, { shares: prevShares + 1 });
-      const { error } = await supabase.from('posts').update({ shares: prevShares + 1 }).eq('id', id);
-      if (error) { patchPost(id, { shares: prevShares }); throw error; }
+      const shared = stateRef.current.myReposts.includes(id);
+      const prevShares = stateRef.current.posts.find(p => p.id === id)?.shares || 0;
+      setState(s => ({
+        ...s,
+        myReposts: shared ? s.myReposts.filter(x => x !== id) : [id, ...s.myReposts],
+        posts: s.posts.map(p => p.id === id
+          ? { ...p, shares: Math.max(0, (p.shares || 0) + (shared ? -1 : 1)) } : p)
+      }));
+      const { error } = shared
+        ? await supabase.from('reposts').delete().eq('user_id', me).eq('post_id', id)
+        : await supabase.from('reposts').insert({ user_id: me, post_id: id });
+      if (error) {
+        setState(s => ({
+          ...s,
+          myReposts: shared ? [id, ...s.myReposts] : s.myReposts.filter(x => x !== id),
+          posts: s.posts.map(p => p.id === id ? { ...p, shares: prevShares } : p)
+        }));
+        throw error;
+      }
     },
 
     addComment: async (id, text) => {
@@ -240,6 +279,7 @@ export function AppProvider({ children }) {
         : await supabase.from('bookmarks').insert({ user_id: me, post_id: postId });
       if (error) {
         setState(s => ({ ...s, bookmarks: has ? [postId, ...s.bookmarks] : s.bookmarks.filter(b => b !== postId) }));
+        throw error;
       }
     },
 

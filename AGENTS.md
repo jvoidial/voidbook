@@ -1,6 +1,6 @@
-# AGENTS.md — sqawk (formerly voidbook)
+# AGENTS.md — sqawk
 
-Expo 51 / React Native Android app + Supabase backend. Repo: `jvoidial/voidbook`.
+Expo 51 / React Native Android app + Supabase backend. Hosted at `github.com/jvoidial/voidbook` (the GitHub path keeps its historical name; the product is sqawk).
 The app ships as **sqawk**, a strict black-and-white social client.
 
 ## Layout
@@ -8,7 +8,7 @@ The app ships as **sqawk**, a strict black-and-white social client.
 - `mobile/` — the app. `mobile/src/` holds `screens/`, `components/`, `context/`, `lib/`.
 - `mobile/src/screens/auth/` — Welcome, SignIn, SignUp, ResetPassword.
 - `supabase/migrations/` — numbered, idempotent SQL. Apply in order in the SQL editor.
-- `.github/workflows/voidbook.yml` — builds the release APK on every push to `main`
+- `.github/workflows/sqawk.yml` — builds the release APK on every push to `main`
   and publishes it to a GitHub Release.
 
 ## Validation: do not trust a syntax check
@@ -70,6 +70,17 @@ filesystem (relative -> real file, bare -> `node_modules/<pkg>` exists).
 - `notifications.target_id` is polymorphic: for `like`/`comment` it holds the
   **post** id, for `follow` it holds the **follower** id. The UI must branch on
   `kind` before using it as a navigation target.
+- **Counters are derived, not columns.** `likes`, `shares` and comment counts are
+  computed on the client by counting rows in `likes`/`reposts`/`comments`. The
+  `posts.likes` and `posts.shares` columns are legacy and may be stale, so never
+  render them directly, and never spread a whole `posts` row over a client post
+  in the Realtime `UPDATE` handler (it would clobber the real counts).
+- **A user action lives in a table keyed by that user**, never as a write to
+  someone else's row. `posts_update_self` is `using (auth.uid() = author_id)`, so
+  the old "Echo" (which did `update posts set shares = shares + 1`) was silently
+  rejected by RLS on any post you did not author. Echo is now a row in `reposts`
+  (migration `008`), with a `SECURITY DEFINER` trigger keeping `posts.shares` in
+  step. Model any new toggle the same way.
 
 ## Client conventions
 

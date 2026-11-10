@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate VOIDBOOK black PNG icons — pure stdlib, no Pillow needed."""
+"""Generate sqawk PNG icons — pure stdlib, no Pillow needed."""
 import os, struct, zlib, sys
 
 def chunk(typ, data):

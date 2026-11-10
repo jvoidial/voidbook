@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""VOIDBOOK Python3 build orchestrator (Termux + GitHub Actions)."""
+"""sqawk Python3 build orchestrator (Termux + GitHub Actions)."""
 import json, os, shutil, subprocess, sys, datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-CFG  = os.path.join(ROOT, "config", "voidbook.json")
+CFG  = os.path.join(ROOT, "config", "sqawk.json")
 
-def log(m): print(f"[VOIDBOOK] {m}", flush=True)
+def log(m): print(f"[sqawk] {m}", flush=True)
 
 def run(cmd, cwd=None):
     log(" ".join(cmd) if isinstance(cmd, list) else cmd)
@@ -18,7 +18,7 @@ def run(cmd, cwd=None):
     return r
 
 def main():
-    log(f"VOIDBOOK build @ {datetime.datetime.utcnow().isoformat()}Z")
+    log(f"sqawk build @ {datetime.datetime.utcnow().isoformat()}Z")
     with open(CFG) as f:
         cfg = json.load(f)
     android = os.path.join(ROOT, "mobile", "android")
@@ -33,8 +33,8 @@ def main():
     for f in os.listdir(out):
         if f.endswith(".apk"):
             shutil.copy2(os.path.join(out, f),
-                         os.path.join(dest, f"VOIDBOOK-v{version}.apk"))
-            log(f"APK → releases/VOIDBOOK-v{version}.apk")
+                         os.path.join(dest, f"sqawk-v{version}.apk"))
+            log(f"APK → releases/sqawk-v{version}.apk")
     log("✅ Build complete.")
 
 if __name__ == "__main__":

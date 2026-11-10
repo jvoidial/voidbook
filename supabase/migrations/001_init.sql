@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════
--- VOIDBOOK initial schema — paste into Supabase SQL editor
+-- sqawk initial schema — paste into Supabase SQL editor
 -- ═══════════════════════════════════════════════════════════════
 
 create extension if not exists "uuid-ossp";

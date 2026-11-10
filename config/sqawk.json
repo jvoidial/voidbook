@@ -1,18 +1,18 @@
 {
   "app": {
-    "name": "VOIDBOOK",
-    "slug": "voidbook",
-    "package": "com.voidial.voidbook",
+    "name": "sqawk",
+    "slug": "sqawk",
+    "package": "com.sqawk.app",
     "version": "1.0.0",
     "versionCode": 1
   },
   "theme": {
     "background": "#000000",
-    "surface":    "#0A0A0A",
-    "border":     "#1F1F1F",
+    "surface":    "#111111",
+    "border":     "#2A2A2A",
     "text":       "#FFFFFF",
     "muted":      "#888888",
-    "accent":     "#00FFCC"
+    "accent":     "#FFFFFF"
   },
   "features": {
     "feed": true, "stories": true, "friends": true, "messages": true,
