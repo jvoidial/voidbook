@@ -87,13 +87,20 @@ jobs:
           [ -n "$APP" ] || { echo "::error::No .app was produced by the build"; exit 1; }
           echo "Built: $APP"
 
-          # Prove it is unsigned before shipping it. codesign exits non-zero for
-          # an unsigned bundle, so this only runs inside the `if` condition.
-          if codesign -dv "$APP" 2>&1 | grep -q "not signed"; then
-            echo "Confirmed: the .app is not code signed."
-          else
-            echo "::warning::The .app appears to carry a signature; the IPA may not be unsigned."
+          # Prove it is unsigned before shipping it. The definitive test is the
+          # absence of the signing artifacts at the app bundle root: `codesign
+          # -dv` writes to stderr with version-dependent wording, so parsing it
+          # gives false alarms. Nested vendor frameworks may carry their own
+          # signature; that is expected and the sideloader re-signs everything.
+          if [ -e "$APP/_CodeSignature" ]; then
+            echo "::error::$APP/_CodeSignature is present; the app is signed"
+            exit 1
           fi
+          if [ -e "$APP/embedded.mobileprovision" ]; then
+            echo "::error::embedded.mobileprovision is present; the app is signed"
+            exit 1
+          fi
+          echo "Confirmed unsigned: no _CodeSignature or embedded.mobileprovision at the app root."
 
           # An .ipa is a zip whose root holds the app in a Payload/ folder.
           rm -rf "$RUNNER_TEMP/Payload"
