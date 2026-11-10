@@ -1,0 +1,146 @@
+name: Build sqawk (Android)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/android-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ── ANDROID ───────────────────────────────────────────────────────────
+  build-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NODE_ENV: production
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      EXPO_PUBLIC_WORKER_URL: ${{ secrets.EXPO_PUBLIC_WORKER_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
+
+      # No dependency caching: a stale node/gradle cache was the source of the
+      # corrupted native build previously, so every run installs and prebuilds fresh.
+      - name: Install deps
+        working-directory: mobile
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Write .env
+        working-directory: mobile
+        run: |
+          printf 'EXPO_PUBLIC_SUPABASE_URL=%s\n' "$EXPO_PUBLIC_SUPABASE_URL" > .env
+          printf 'EXPO_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$EXPO_PUBLIC_SUPABASE_ANON_KEY" >> .env
+          printf 'EXPO_PUBLIC_WORKER_URL=%s\n' "$EXPO_PUBLIC_WORKER_URL" >> .env
+
+      - name: Expo prebuild (regenerates android/ from scratch)
+        working-directory: mobile
+        run: npx expo prebuild --platform android --clean
+
+      - name: Disable Proguard, tune JVM
+        run: |
+          sed -i 's/minifyEnabled true/minifyEnabled false/g' mobile/android/app/build.gradle
+          {
+            echo 'android.enableProguardInReleaseBuilds=false'
+            echo 'org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m'
+            echo 'systemProp.org.gradle.internal.http.connectionTimeout=120000'
+            echo 'systemProp.org.gradle.internal.http.socketTimeout=120000'
+          } >> mobile/android/gradle.properties
+
+      - name: Configure release signing
+        working-directory: mobile/android/app
+        run: |
+          # prebuild may emit a debug.keystore whose alias collides with the one
+          # we generate below; remove it first to avoid "alias already exists".
+          rm -f debug.keystore
+          cat >> build.gradle << 'GRADLE_EOF'
+
+          android {
+              signingConfigs {
+                  release {
+                      storeFile file("debug.keystore")
+                      storePassword "android"
+                      keyAlias "androiddebugkey"
+                      keyPassword "android"
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+              }
+          }
+          GRADLE_EOF
+          keytool -genkeypair -v -storetype PKCS12 \
+            -keystore debug.keystore -storepass android \
+            -alias androiddebugkey -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=sqawk"
+
+      - name: Patch Gradle Wrapper for CI
+        run: |
+          # Force the smaller -bin.zip instead of -all.zip
+          sed -i 's/gradle-8.8-all.zip/gradle-8.6-bin.zip/g' mobile/android/gradle/wrapper/gradle-wrapper.properties
+          sed -i 's/gradle-8.6-all.zip/gradle-8.6-bin.zip/g' mobile/android/gradle/wrapper/gradle-wrapper.properties
+          # Remove any existing timeout lines
+          sed -i '/networkTimeout/d' mobile/android/gradle/wrapper/gradle-wrapper.properties
+          sed -i '/connectionTimeout/d' mobile/android/gradle/wrapper/gradle-wrapper.properties
+          # The distribution is ~130 MB. A 60s read timeout fails intermittently on
+          # a loaded runner ("Read timed out" fetching gradle-8.6-bin.zip), which is
+          # the flake that has broken this job before. Give it real headroom.
+          echo "networkTimeout=300000" >> mobile/android/gradle/wrapper/gradle-wrapper.properties
+          echo "connectionTimeout=60000" >> mobile/android/gradle/wrapper/gradle-wrapper.properties
+          echo "✅ Patched Gradle wrapper to -bin.zip with a 5-minute download timeout."
+
+      - name: Build release APK
+        working-directory: mobile/android
+        run: |
+          # One bounded retry. Gradle downloads the distribution, Android Gradle
+          # Plugin artefacts and Maven dependencies on a cold runner; a transient
+          # network failure aborts the whole build. A second attempt reuses what
+          # already downloaded. A genuine compile error simply fails twice.
+          for attempt in 1 2; do
+            echo "── Build attempt ${attempt} ──"
+            if ./gradlew assembleRelease --no-daemon --stacktrace; then
+              exit 0
+            fi
+            echo "Attempt ${attempt} failed. Retrying in 15s (transient downloads are the usual cause)."
+            sleep 15
+          done
+          echo "Build failed after 2 attempts."
+          exit 1
+
+      - name: Stage APK
+        run: |
+          mkdir -p artifacts
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk artifacts/sqawk.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sqawk-android-apk
+          path: artifacts/sqawk.apk
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: sqawk v1.0.${{ github.run_number }}
+          files: artifacts/*.apk
+

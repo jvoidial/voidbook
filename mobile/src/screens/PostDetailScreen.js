@@ -50,7 +50,7 @@ export default function PostDetailScreen({ route, navigation }) {
     );
   }
 
-  const author = usersById[post.userId]
+  const author = usersById[post.userId] || post.author
     || (post.userId === me?.id ? { name: myName, handle: '' } : { name: 'Unknown', handle: '@unknown' });
   const bookmarked = (state.bookmarks || []).includes(post.id);
   const liked = (state.myLikes || []).includes(post.id);

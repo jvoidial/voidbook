@@ -35,7 +35,10 @@ export default function SearchScreen() {
         supabase.from('profiles').select('*')
           .or(`handle.ilike.${like},name.ilike.${like}`)
           .limit(30),
-        supabase.from('posts').select('*, author:profiles(*)')
+        // The `!author_id` hint disambiguates the embed; without it PostgREST
+        // also matches the posts↔profiles path via the likes/bookmarks/reposts
+        // join tables and rejects the query as ambiguous.
+        supabase.from('posts').select('*, author:profiles!author_id(*)')
           .ilike('content', like).is('deleted_at', null)
           .order('created_at', { ascending: false }).limit(30)
       ]);

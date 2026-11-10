@@ -11,9 +11,11 @@ export default function PostCard({ post, user }) {
   const nav = useNavigation();
   const { user: me } = useAuth();
   const { state, likePost, sharePost, toggleBookmark, deletePost } = useApp();
-  // `user` is the joined profile row; fall back cleanly if it is still loading.
-  const displayName = user?.name || 'Unknown';
-  const handle = (user?.handle || '').replace('@', '');
+  // Prefer the joined profile row, but fall back to the author embedded in the
+  // post itself so a name is shown even if the profile list is incomplete.
+  const author = user || post.author || null;
+  const displayName = author?.name || 'Unknown';
+  const handle = (author?.handle || '').replace('@', '');
   const mins = Math.floor((Date.now() - new Date(post.created_at || post.ts).getTime()) / 60000);
   const timeLabel = mins < 1 ? 'now' : mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins/60)}h` : `${Math.floor(mins/1440)}d`;
   const bookmarked = (state.bookmarks || []).includes(post.id);

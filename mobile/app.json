@@ -14,7 +14,10 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "permissions": ["CAMERA", "RECORD_AUDIO"],
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO"
+      ],
       "newArchEnabled": false
     },
     "ios": {
@@ -33,7 +36,9 @@
       "backgroundColor": "#000000"
     },
     "icon": "./assets/icon.png",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "plugins": [
       [
         "expo-build-properties",
@@ -64,7 +69,11 @@
           "recordAudioAndroid": true
         }
       ],
-      "@daily-co/config-plugin-rn-daily-js"
+      "@daily-co/config-plugin-rn-daily-js",
+      [
+        "@stripe/stripe-react-native",
+        {}
+      ]
     ],
     "newArchEnabled": false
   }

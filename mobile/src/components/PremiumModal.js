@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useStripe } from '@stripe/stripe-react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { stripeEnabled } from '../lib/stripe';
 import { theme as T } from '../theme';
 
 const PERKS = [
@@ -16,14 +18,63 @@ export default function PremiumModal({ visible, onClose }) {
   const { refreshSession } = useAuth();
   const [busy, setBusy] = useState(false);
 
+  // useStripe is safe to call outside StripeProvider (it returns null), so the
+  // modal renders in builds without a publishable key.
+  const { initPaymentSheet, presentPaymentSheet } = useStripe() || {};
+
+  // Activated once the PaymentIntent succeeds. The entitlement itself is granted
+  // by the `activate_premium` RPC, so the app never writes is_premium directly.
+  const activate = async () => {
+    const { error } = await supabase.rpc('activate_premium');
+    if (error) throw error;
+    await refreshSession();
+  };
+
   const subscribe = async () => {
     if (busy) return;
+
+    // No Stripe key configured: fall back to the direct RPC so Premium is still
+    // testable without a payment account.
+    if (!stripeEnabled || !initPaymentSheet) {
+      try {
+        setBusy(true);
+        await activate();
+        onClose?.();
+        Alert.alert('Welcome to sqawk Premium', 'Your account is now premium.');
+      } catch (e) {
+        Alert.alert('Subscription failed', e.message);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     try {
       setBusy(true);
-      const { error } = await supabase.rpc('activate_premium');
-      if (error) throw error;
-      // Refresh the session + profile so the blue checkmark appears instantly.
-      await refreshSession();
+
+      // The amount and currency are decided server-side; the client only asks
+      // for a PaymentIntent.
+      const { data, error } = await supabase.functions.invoke('create-payment-intent', { body: {} });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.detail || data.error);
+
+      const init = await initPaymentSheet({
+        merchantDisplayName: 'sqawk',
+        paymentIntentClientSecret: data.clientSecret,
+        customerId: data.customer,
+        customerEphemeralKeySecret: data.ephemeralKey,
+        allowsDelayedPaymentMethods: false,
+      });
+      if (init.error) throw new Error(init.error.message);
+
+      const presented = await presentPaymentSheet();
+      if (presented.error) {
+        // A user cancelling is not an error worth an alert.
+        if (presented.error.code === 'Canceled') return;
+        throw new Error(presented.error.message);
+      }
+
+      await activate();
       onClose?.();
       Alert.alert('Welcome to sqawk Premium', 'Your account is now premium.');
     } catch (e) {

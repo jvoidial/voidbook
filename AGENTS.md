@@ -11,10 +11,49 @@ The app ships as **sqawk**, a strict black-and-white social client.
 - `supabase/functions/daily-token/` — Deno edge function that mints Daily.co room
   tokens. Deploy with `supabase functions deploy daily-token` after
   `supabase secrets set DAILY_API_KEY=...`.
-- `.github/workflows/build-all.yml` — builds **both** platforms on every push to
-  `main`: `build-android` (release APK) and `build-ios` (IPA). Publishes both to
-  the same GitHub Release. The iOS job is skipped with a warning when the Apple
-  signing secrets are absent, so Android releases never depend on them.
+- `supabase/functions/create-payment-intent/` — Deno edge function that creates a
+  Stripe Customer + PaymentIntent for Premium. Deploy with
+  `supabase functions deploy create-payment-intent` after
+  `supabase secrets set STRIPE_SECRET_KEY=... STRIPE_PUBLISHABLE_KEY=...`.
+- `supabase/tests/` — a reproducible Postgres + PostgREST harness. `./supabase/tests/run.sh`
+  applies every migration, runs the RLS tests and the supabase-js e2e. Needs Docker.
+- `.github/workflows/android-build.yml` — release APK on push to `main` (paths: `mobile/**`).
+- `.github/workflows/ios-build.yml` — IPA on push to `main` (paths: `mobile/**`). Skipped
+  with a warning when the Apple signing secrets are absent, so Android releases
+  never depend on them. Tags iOS releases `ios-v1.0.<n>` so they do not collide
+  with the Android `v1.0.<n>` tag from the same run number.
+
+## PostgREST embeds need a disambiguation hint
+
+`posts` reaches `profiles` by two paths — the direct `author_id` FK **and** a
+many-to-many path through `likes`/`bookmarks`/`reposts` — so
+`.select('*, author:profiles(*)')` fails the whole query with
+`PGRST201 (Could not embed because more than one relationship was found)`.
+Always name the column or constraint:
+
+```js
+supabase.from('posts').select('*, author:profiles!author_id(*)')
+```
+
+The same trap breaks `SearchScreen` and the feed; a failed embed returns
+`{ data: null, error }` rather than throwing, so it reads as "no posts" /
+"Unknown" instead of an error.
+
+## Realtime only delivers the changed row
+
+A `postgres_changes` payload contains the inserted row, nothing else. When a
+message arrives for a conversation the client has never loaded (a brand new
+chat), there is no conversation to append it to, so `AppContext` refetches that
+conversation by id before inserting. RLS makes this safe: a non-participant's
+fetch returns nothing and the message is dropped.
+
+## Stripe is optional
+
+`src/lib/stripe.js` reads `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY`. With no key the
+app skips `StripeProvider` and the Premium modal falls back to the
+`activate_premium` RPC, so development builds and CI work without a payment
+account. The `@stripe/stripe-react-native` config plugin must be passed `{}` —
+a bare string crashes it on `props.merchantIdentifier`.
 
 ## Android package name is frozen
 

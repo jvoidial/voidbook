@@ -10,6 +10,13 @@ const mapComment = (c) => ({ ...c, userId: c.author_id, ts: c.created_at });
 const mapMessage = (m) => ({ ...m, from: m.sender_id, ts: m.created_at });
 const mapNotification = (n) => ({ ...n, userId: n.actor_id, type: n.kind, ts: n.created_at });
 
+const mapConversation = (c, me) => ({
+  id: c.id,
+  withUserId: c.user_a === me ? c.user_b : c.user_a,
+  messages: (c.messages || []).map(mapMessage)
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+});
+
 const EMPTY = {
   users: [], profiles: {}, posts: [], follows: [], bookmarks: [], myLikes: [], myReposts: [],
   conversations: [], notifications: [], loadError: null,
@@ -42,6 +49,7 @@ function normalizePosts(posts, comments, likes, reposts, me) {
     posts: posts.map(p => ({
       ...p,
       userId: p.author_id,
+      author: p.author || null,
       ts: p.created_at,
       likes: counts[p.id] || 0,
       shares: repostCounts[p.id] || 0,
@@ -79,7 +87,12 @@ export function AppProvider({ children }) {
           // Soft-deleted posts are hidden by the `posts_read_public` policy for
           // other users, but the author's own policy lets them through, so
           // filter explicitly or your deleted posts linger in your feed.
-          supabase.from('posts').select('*').is('deleted_at', null).order('created_at', { ascending: false }).limit(100),
+          // Embed the author so a post's name never depends on the author being
+          // inside the `profiles` page window; without this, an author outside it
+          // renders as "Unknown". The `!author_id` hint is required: PostgREST
+          // also sees a posts↔profiles path through the likes/bookmarks/reposts
+          // join tables and refuses the embed as ambiguous without it.
+          supabase.from('posts').select('*, author:profiles!author_id(*)').is('deleted_at', null).order('created_at', { ascending: false }).limit(100),
           supabase.from('follows').select('*'),
           supabase.from('bookmarks').select('*').eq('user_id', me),
           supabase.from('conversations').select('*, messages(*)').or(`user_a.eq.${me},user_b.eq.${me}`),
@@ -89,6 +102,16 @@ export function AppProvider({ children }) {
           supabase.from('reposts').select('*')
         ]);
         if (!alive) return;
+
+        // A rejected query yields `{ data: null, error }` rather than throwing, so
+        // without this the failure is invisible: profiles come back empty (every
+        // author renders as "Unknown") and Messages looks like it simply has no
+        // conversations. Surface the first failure instead of guessing later.
+        const failed = [['profiles', profiles], ['posts', posts], ['follows', follows],
+          ['bookmarks', bookmarks], ['conversations', convos], ['notifications', notifs],
+          ['comments', comments], ['likes', likes], ['reposts', reposts]]
+          .find(([, r]) => r?.error);
+        if (failed) console.warn(`[sqawk] ${failed[0]} load failed:`, failed[1].error.message);
 
         const profileRows = profiles.data || [];
         const { posts: feed, myLikes, myReposts } = normalizePosts(posts.data || [], comments.data || [], likes.data || [], reposts.data || [], me);
@@ -103,11 +126,7 @@ export function AppProvider({ children }) {
           bookmarks: (bookmarks.data || []).map(b => b.post_id),
           myLikes,
           myReposts,
-          conversations: (convos.data || []).map(c => ({
-            id: c.id,
-            withUserId: c.user_a === me ? c.user_b : c.user_a,
-            messages: (c.messages || []).map(mapMessage).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-          })),
+          conversations: (convos.data || []).map(c => mapConversation(c, me)),
           notifications: (notifs.data || []).map(mapNotification)
         });
       } catch (e) {
@@ -130,7 +149,8 @@ export function AppProvider({ children }) {
         // soft-deleted rows over Realtime.
         (p.deleted_at) ? undefined : setState(s => s.posts.some(x => x.id === p.id) ? s : {
           ...s,
-          posts: [{ ...p, userId: p.author_id, ts: p.created_at, likes: 0, comments: [] }, ...s.posts]
+          posts: [{ ...p, userId: p.author_id, author: s.profiles[p.author_id] || null,
+            ts: p.created_at, likes: 0, comments: [] }, ...s.posts]
         }))
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts' }, ({ new: p }) =>
         setState(s => ({
@@ -150,10 +170,25 @@ export function AppProvider({ children }) {
         })))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, ({ new: c }) =>
         ingestComment(c))
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, ({ new: m }) =>
-        setState(s => ({ ...s, conversations: s.conversations.map(c => c.id === m.conversation_id
-          ? { ...c, messages: c.messages.some(x => x.id === m.id) ? c.messages : [...c.messages, mapMessage(m)] }
-          : c) })))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async ({ new: m }) => {
+        // The recipient may not have this conversation in state yet: Realtime only
+        // gives us the message row, not the conversation that owns it, and a brand
+        // new chat has never been loaded. Without fetching it here the message is
+        // silently dropped until the next full reload.
+        if (stateRef.current.conversations.some(c => c.id === m.conversation_id)) {
+          setState(s => ({ ...s, conversations: s.conversations.map(c => c.id === m.conversation_id
+            ? { ...c, messages: c.messages.some(x => x.id === m.id) ? c.messages : [...c.messages, mapMessage(m)] }
+            : c) }));
+          return;
+        }
+        // Not a participant (RLS would return nothing) or the fetch fails: skip.
+        const { data, error } = await supabase.from('conversations')
+          .select('*, messages(*)').eq('id', m.conversation_id).maybeSingle();
+        if (error || !data) return;
+        setState(s => s.conversations.some(c => c.id === data.id)
+          ? s
+          : { ...s, conversations: [mapConversation(data, me), ...s.conversations] });
+      })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, ({ new: n }) =>
         setState(s => s.notifications.some(x => x.id === n.id) ? s : {
           ...s, notifications: [mapNotification(n), ...s.notifications]
@@ -169,12 +204,15 @@ export function AppProvider({ children }) {
     state, ready, ingestComment,
 
     addPost: async (content, mediaUrl, mediaType) => {
+      // Select the author alongside the row so the new post renders with a name
+      // immediately, rather than waiting for a reload to resolve the profile.
       const { data, error } = await supabase.from('posts')
         .insert({ content: content || '', author_id: me, media_url: mediaUrl || null, media_type: mediaType || null })
-        .select('*').single();
+        .select('*, author:profiles!author_id(*)').single();
       if (error) throw error;
       setState(s => s.posts.some(p => p.id === data.id) ? s : {
-        ...s, posts: [{ ...data, userId: data.author_id, ts: data.created_at, likes: 0, comments: [] }, ...s.posts]
+        ...s, posts: [{ ...data, userId: data.author_id, author: data.author || null,
+          ts: data.created_at, likes: 0, comments: [] }, ...s.posts]
       });
     },
 
