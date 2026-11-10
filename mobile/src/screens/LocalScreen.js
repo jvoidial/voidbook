@@ -5,8 +5,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useStripe } from '@stripe/stripe-react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { payForProduct } from '../lib/payments';
 import { theme as T } from '../theme';
 
 const TABS = ['Businesses', 'Communities'];
@@ -14,6 +16,9 @@ const CATEGORIES = ['food', 'retail', 'services', 'health', 'arts', 'other'];
 
 export default function LocalScreen() {
   const { user } = useAuth();
+  // Safe outside StripeProvider: returns null, which payForProduct treats as
+  // "Stripe not configured" and skips the payment step.
+  const { initPaymentSheet, presentPaymentSheet } = useStripe() || {};
   const [tab, setTab] = useState('Businesses');
   const [rows, setRows] = useState({ Businesses: [], Communities: [] });
   const [loading, setLoading] = useState(true);
@@ -53,8 +58,21 @@ export default function LocalScreen() {
     if (!form.name.trim()) return;
     try {
       setBusy(true);
-      // "$1 to list" is simulated until a payment provider is wired; `paid`
-      // records that the step was completed.
+
+      // A business listing costs $1. Collect it before inserting so a listing is
+      // never created unpaid. With Stripe unconfigured `skipped` is true and the
+      // listing proceeds, keeping the flow usable in dev builds.
+      if (tab === 'Businesses') {
+        const { paid, skipped } = await payForProduct({
+          product: 'business_listing',
+          initPaymentSheet,
+          presentPaymentSheet,
+        });
+        if (!paid && !skipped) return; // user cancelled
+      }
+
+      // `paid` records that the listing fee step completed; the authoritative
+      // signal is the Stripe PaymentIntent captured above.
       const payload = {
         owner_id: user.id,
         name: form.name.trim(),
@@ -66,7 +84,7 @@ export default function LocalScreen() {
       if (error) throw error;
       setModal(false);
       await load();
-      if (tab === 'Businesses') Alert.alert('Listed', 'Your business is live. ($1 listing fee simulated.)');
+      if (tab === 'Businesses') Alert.alert('Listed', 'Your business is live.');
     } catch (e) {
       Alert.alert('Could not save', e.message);
     } finally {

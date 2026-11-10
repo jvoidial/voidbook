@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useStripe } from '@stripe/stripe-react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { stripeEnabled } from '../lib/stripe';
+import { payForProduct } from '../lib/payments';
 import { theme as T } from '../theme';
 
 const PERKS = [
@@ -33,46 +33,16 @@ export default function PremiumModal({ visible, onClose }) {
   const subscribe = async () => {
     if (busy) return;
 
-    // No Stripe key configured: fall back to the direct RPC so Premium is still
-    // testable without a payment account.
-    if (!stripeEnabled || !initPaymentSheet) {
-      try {
-        setBusy(true);
-        await activate();
-        onClose?.();
-        Alert.alert('Welcome to sqawk Premium', 'Your account is now premium.');
-      } catch (e) {
-        Alert.alert('Subscription failed', e.message);
-      } finally {
-        setBusy(false);
-      }
-      return;
-    }
-
     try {
       setBusy(true);
 
-      // The amount and currency are decided server-side; the client only asks
-      // for a PaymentIntent.
-      const { data, error } = await supabase.functions.invoke('create-payment-intent', { body: {} });
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.detail || data.error);
-
-      const init = await initPaymentSheet({
-        merchantDisplayName: 'sqawk',
-        paymentIntentClientSecret: data.clientSecret,
-        customerId: data.customer,
-        customerEphemeralKeySecret: data.ephemeralKey,
-        allowsDelayedPaymentMethods: false,
+      const { paid, skipped } = await payForProduct({
+        product: 'sqawk_premium',
+        initPaymentSheet,
+        presentPaymentSheet,
       });
-      if (init.error) throw new Error(init.error.message);
-
-      const presented = await presentPaymentSheet();
-      if (presented.error) {
-        // A user cancelling is not an error worth an alert.
-        if (presented.error.code === 'Canceled') return;
-        throw new Error(presented.error.message);
-      }
+      if (!paid && !skipped) return; // user cancelled
+      // Without Stripe configured we still grant Premium so it stays testable.
 
       await activate();
       onClose?.();

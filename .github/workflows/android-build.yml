@@ -138,9 +138,24 @@ jobs:
           name: sqawk-android-apk
           path: artifacts/sqawk.apk
 
+      - name: Compute release tag
+        id: version
+        if: github.ref == 'refs/heads/main'
+        # `github.run_number` counts per-workflow, so splitting the workflows
+        # reset it to 1 — which made this job silently re-publish the existing
+        # `v1.0.1` release (clobbering its asset) instead of creating a new one.
+        # Derive the next tag from the tags that already exist instead.
+        run: |
+          latest=$(git ls-remote --tags --refs origin 'v1.0.*' \
+            | sed 's#.*refs/tags/v1.0\.##' | grep -E '^[0-9]+$' | sort -n | tail -1)
+          next=$(( ${latest:-0} + 1 ))
+          echo "tag=v1.0.${next}" >> "$GITHUB_OUTPUT"
+          echo "Releasing v1.0.${next} (previous highest was v1.0.${latest:-none})."
+
       - uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: sqawk v1.0.${{ github.run_number }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: sqawk ${{ steps.version.outputs.tag }}
           files: artifacts/*.apk
 

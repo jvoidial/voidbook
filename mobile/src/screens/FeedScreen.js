@@ -56,7 +56,7 @@ export default function FeedScreen() {
           </View>
         </TouchableOpacity>
 
-        <Ionicons name="logo-twitter" size={28} color={T.text} />
+        <Image source={require('../../assets/icon.jpg')} style={S.logo} resizeMode="contain" accessibilityLabel="sqawk" />
 
         <View style={S.topActions}>
           <TouchableOpacity onPress={() => nav.navigate('StartLive')} hitSlop={10}>
@@ -149,6 +149,7 @@ const S = StyleSheet.create({
   c: { flex: 1, backgroundColor: T.bg },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: T.divider },
   topActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
+  logo: { width: 32, height: 32, borderRadius: 8 },
   av: { width: 32, height: 32, borderRadius: 16, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avImg: { width: '100%', height: '100%' },
   avT: { color: T.text, fontWeight: 'bold', fontSize: 14 },

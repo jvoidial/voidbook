@@ -23,6 +23,24 @@ The app ships as **sqawk**, a strict black-and-white social client.
   never depend on them. Tags iOS releases `ios-v1.0.<n>` so they do not collide
   with the Android `v1.0.<n>` tag from the same run number.
 
+## Release tags must not use `github.run_number`
+
+`github.run_number` counts **per workflow**, so it resets to 1 whenever a workflow
+is split, renamed or added. That made the release step re-publish the existing
+`v1.0.1` release and clobber its asset instead of creating a new one — the APK
+looked missing from the Releases tab even though the build succeeded.
+
+Both workflows now derive the next tag from the tags that already exist:
+
+```bash
+latest=$(git ls-remote --tags --refs origin 'v1.0.*' \
+  | sed 's#.*refs/tags/v1.0\.##' | grep -E '^[0-9]+$' | sort -n | tail -1)
+echo "tag=v1.0.$(( ${latest:-0} + 1 ))" >> "$GITHUB_OUTPUT"
+```
+
+Keep the `if: github.ref == 'refs/heads/main'` guard on the release step: without
+it a `workflow_dispatch` on a feature branch would publish a release.
+
 ## PostgREST embeds need a disambiguation hint
 
 `posts` reaches `profiles` by two paths — the direct `author_id` FK **and** a
@@ -54,6 +72,15 @@ app skips `StripeProvider` and the Premium modal falls back to the
 `activate_premium` RPC, so development builds and CI work without a payment
 account. The `@stripe/stripe-react-native` config plugin must be passed `{}` —
 a bare string crashes it on `props.merchantIdentifier`.
+
+`src/lib/payments.js` holds the one PaymentSheet flow, shared by Premium and the
+$1 business listing. `useStripe()` is context-free (it only wraps native
+functions), so calling it outside `StripeProvider` is safe — it returns usable
+methods and `payForProduct` short-circuits on the missing key instead.
+
+Product prices live in the `create-payment-intent` edge function's `PRODUCTS`
+table, never in the client: `{ product: 'business_listing' }` is a name, not an
+amount, so a tampered request cannot buy Premium for a cent.
 
 ## Android package name is frozen
 

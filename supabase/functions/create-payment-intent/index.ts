@@ -9,7 +9,9 @@
 //   supabase functions deploy create-payment-intent
 //
 // Request  (POST, Authorization: Bearer <supabase access token>):
-//   { }                        // amount/currency are decided here, not by the client
+//   { "product": "sqawk_premium" }        // optional; defaults to sqawk_premium
+//   { "product": "business_listing" }     // $1 business listing fee
+//   amount/currency are decided here, not by the client
 // Response:
 //   { "clientSecret": "pi_..._secret_...", "ephemeralKey": "...",
 //     "customer": "cus_...", "publishableKey": "pk_..." }
@@ -32,10 +34,12 @@ function json(body: unknown, status = 200) {
   });
 }
 
-// Price of sqawk Premium, in the smallest currency unit (cents). Kept server
-// side on purpose: a client-supplied amount would let anyone buy Premium for 1c.
-const PREMIUM_AMOUNT = 800;
-const PREMIUM_CURRENCY = 'usd';
+// Prices live server side on purpose: a client-supplied amount would let anyone
+// buy Premium (or list a business) for 1 cent.
+const PRODUCTS = {
+  sqawk_premium: { amount: 800, currency: 'usd' },
+  business_listing: { amount: 100, currency: 'usd' },
+};
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
@@ -43,6 +47,16 @@ Deno.serve(async (req) => {
 
   const secret = Deno.env.get('STRIPE_SECRET_KEY');
   if (!secret) return json({ error: 'server_misconfigured', detail: 'STRIPE_SECRET_KEY not set' }, 500);
+
+  // The client names a product; the price is looked up here. Unknown names are
+  // rejected rather than defaulted, so a typo can never charge the wrong price.
+  let product = 'sqawk_premium';
+  try {
+    const body = await req.json().catch(() => ({}));
+    if (body?.product) product = String(body.product);
+  } catch { /* empty body is fine: it means Premium */ }
+  const price = PRODUCTS[product];
+  if (!price) return json({ error: 'unknown_product', detail: product }, 400);
 
   const stripe = new Stripe(secret, { apiVersion: '2024-06-20' });
 
@@ -75,11 +89,11 @@ Deno.serve(async (req) => {
     );
 
     const intent = await stripe.paymentIntents.create({
-      amount: PREMIUM_AMOUNT,
-      currency: PREMIUM_CURRENCY,
+      amount: price.amount,
+      currency: price.currency,
       customer: customer.id,
       automatic_payment_methods: { enabled: true },
-      metadata: { supabase_user_id: user.id, product: 'sqawk_premium' },
+      metadata: { supabase_user_id: user.id, product },
     });
 
     return json({

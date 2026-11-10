@@ -164,9 +164,21 @@ jobs:
           name: sqawk-ios-ipa
           path: artifacts/sqawk.ipa
 
+      - name: Compute release tag
+        id: version
+        if: steps.guard.outputs.ready == 'true'
+        # Same per-workflow counter problem as the Android job: derive the tag
+        # from existing tags so a fresh workflow never re-publishes an old one.
+        run: |
+          latest=$(git ls-remote --tags --refs origin 'ios-v1.0.*' \
+            | sed 's#.*refs/tags/ios-v1.0\.##' | grep -E '^[0-9]+$' | sort -n | tail -1)
+          next=$(( ${latest:-0} + 1 ))
+          echo "tag=ios-v1.0.${next}" >> "$GITHUB_OUTPUT"
+          echo "Releasing ios-v1.0.${next} (previous highest was ios-v1.0.${latest:-none})."
+
       - uses: softprops/action-gh-release@v2
         if: steps.guard.outputs.ready == 'true'
         with:
-          tag_name: ios-v1.0.${{ github.run_number }}
-          name: sqawk iOS v1.0.${{ github.run_number }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: sqawk iOS ${{ steps.version.outputs.tag }}
           files: artifacts/*.ipa
