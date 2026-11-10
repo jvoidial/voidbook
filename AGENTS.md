@@ -78,15 +78,27 @@ filesystem (relative -> real file, bare -> `node_modules/<pkg>` exists).
   `profiles` row exposed as `useAuth().profile`. Reading `user.name` yields
   `undefined`, which renders blank names and a `'?'` avatar letter. Use
   `profile` for display fields and `user.id` for identity.
-- **`push()` only exists on a stack navigator.** A screen inside the bottom-tab
-  navigator gets the *tab* router's helpers, which are `navigate`/`jumpTo` only —
-  `navigation.push` is `undefined` there and throws. From a tab screen use
-  `navigate`. (A component rendered under a tab screen inherits that tab's
-  navigation object, so `PostCard` must use `navigate` too.)
+- **`push()` from a tab screen works and opens the parent stack's screen.** A
+  tab's navigation helpers are `{ ...parentHelpers, ...ownHelpers }` (see
+  `useNavigationHelpers`), so a tab screen inherits the root stack's `push`; and
+  an action the tab router cannot handle bubbles up through `useOnAction`.
+  `PostCard`, rendered in the Home tab, relies on this to `push('PostDetail')`.
+  Use `push` for a new screen on top of the stack, `navigate` to reuse an
+  existing one. (Verified against `@react-navigation/core` and `routers`, not
+  assumed.)
 - **Navigate across navigators by naming the target explicitly**, e.g. from a
   root-stack screen into a tab: `navigation.navigate('MainTabs', { screen:
   'Messages', params: {...} })`. `navigate('Messages')` from the stack finds
   nothing.
+- **Mutations throw; callers must catch.** `deletePost`/`editPost`/`likePost`/
+  `sharePost`/`toggleBookmark`/`toggleFollow`/`addComment` apply an optimistic
+  update, roll it back, and rethrow on failure. A fire-and-forget call site
+  (`onPress={() => deletePost(id)}`) therefore becomes an unhandled rejection —
+  wrap it and surface the error. `PostCard` has a small `run(fn, title)` helper
+  for exactly this.
+- `useApp().ready` is false until the first load finishes. Screens that would
+  otherwise flash an empty state or a "deleted" message on a cold start should
+  gate on it and show an `ActivityIndicator` instead.
 - Soft-deleted posts (`deleted_at is not null`) are filtered by RLS for *other*
   users but **not** for the author, so every client query and the Realtime
   `posts` handler must filter `deleted_at` too or the author sees their own

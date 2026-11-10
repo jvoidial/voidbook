@@ -15,13 +15,15 @@ export default function NotificationsScreen() {
     follow:'followed you', friend_request:'sent you a friend request',
     share:'reposted your post', mention:'mentioned you' }[n.type] || 'interacted with you');
 
-  // Tapping a notification opens the thing it is about. For a follow,
-  // target_id is the follower (see 007_notifications.sql); otherwise it is the
-  // post the actor interacted with.
+  // Tapping a notification opens the thing it is about. push() bubbles from this
+  // tab to the root stack (the tab's helpers inherit the stack's actions), so the
+  // target opens as a new screen on top. `target_id` is polymorphic: the follower
+  // for a follow, otherwise the post the actor interacted with (see
+  // 007_notifications.sql). `userId` is the mapped `actor_id`.
   const open = (n) => {
-    if (n.type === 'follow') nav.navigate('UserProfile', { userId: n.target_id || n.userId });
-    else if (n.target_id) nav.navigate('PostDetail', { postId: n.target_id });
-    else if (n.userId) nav.navigate('UserProfile', { userId: n.userId });
+    if (n.type === 'follow') nav.push('UserProfile', { userId: n.target_id || n.userId });
+    else if (n.target_id) nav.push('PostDetail', { postId: n.target_id });
+    else if (n.userId) nav.push('UserProfile', { userId: n.userId });
   };
 
   return (

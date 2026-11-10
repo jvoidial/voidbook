@@ -11,7 +11,7 @@ import { theme as T } from '../theme';
 
 export default function FeedScreen() {
   const nav = useNavigation();
-  const { state, addPost } = useApp();
+  const { state, ready, addPost } = useApp();
   // `user` is the Supabase auth user (id/email only); display fields live on
   // the profile row, so read the name/avatar from there.
   const { user, profile } = useAuth();
@@ -63,20 +63,30 @@ export default function FeedScreen() {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={state.posts}
-        keyExtractor={i => i.id}
-        renderItem={({ item }) => <PostCard post={item} user={usersById[item.userId]} />}
-        ListEmptyComponent={
-          <View style={S.empty}>
-            <Ionicons name="chatbubbles-outline" size={40} color={T.muted} />
-            <Text style={S.emptyT}>No posts yet</Text>
-            <Text style={S.emptySub}>Tap the pencil to say something.</Text>
-          </View>
-        }
-        // Leave room under the last row so the FAB never covers it.
-        contentContainerStyle={{ paddingBottom: 96 }}
-      />
+      {!ready ? (
+        <ActivityIndicator color={T.accent} style={{ marginTop: 40 }} />
+      ) : state.loadError ? (
+        <View style={S.empty}>
+          <Ionicons name="cloud-offline-outline" size={40} color={T.muted} />
+          <Text style={S.emptyT}>Could not load your feed</Text>
+          <Text style={S.emptySub}>{state.loadError}</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={state.posts}
+          keyExtractor={i => i.id}
+          renderItem={({ item }) => <PostCard post={item} user={usersById[item.userId]} />}
+          ListEmptyComponent={
+            <View style={S.empty}>
+              <Ionicons name="chatbubbles-outline" size={40} color={T.muted} />
+              <Text style={S.emptyT}>No posts yet</Text>
+              <Text style={S.emptySub}>Tap the pencil to say something.</Text>
+            </View>
+          }
+          // Leave room under the last row so the FAB never covers it.
+          contentContainerStyle={{ paddingBottom: 96 }}
+        />
+      )}
 
       {/* Floating Action Button (Compose) */}
       <TouchableOpacity style={S.fab} onPress={() => setModal(true)}>

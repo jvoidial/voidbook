@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
@@ -9,9 +9,13 @@ import { theme as T } from '../theme';
 
 export default function PostDetailScreen({ route, navigation }) {
   const { postId } = route.params;
-  const { state, addComment, likePost, sharePost, deletePost, toggleBookmark, ingestComment } = useApp();
+  const { state, ready, addComment, likePost, sharePost, deletePost, toggleBookmark, ingestComment } = useApp();
   const { user: me, profile: myProfile } = useAuth();
   const myName = myProfile?.name || 'You';
+  // like/share/save reject on failure; catch so a failed write surfaces instead
+  // of becoming an unhandled rejection.
+  const run = (fn, title) => Promise.resolve().then(fn).catch(e =>
+    Alert.alert(title, e?.message || 'Please check your connection.'));
   const [text, setText] = useState('');
   const post = (state.posts || []).find(p => p.id === postId);
   const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
@@ -39,7 +43,9 @@ export default function PostDetailScreen({ route, navigation }) {
           <Text style={S.title}>Post</Text>
           <View style={{ width: 26 }} />
         </View>
-        <Text style={S.empty}>Post deleted.</Text>
+        {ready
+          ? <Text style={S.empty}>Post deleted.</Text>
+          : <ActivityIndicator color={T.accent} style={{ marginTop: 40 }} />}
       </SafeAreaView>
     );
   }
@@ -62,6 +68,7 @@ export default function PostDetailScreen({ route, navigation }) {
   };
 
   return (
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: T.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <SafeAreaView style={S.c} edges={['top']}>
       <View style={S.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -69,7 +76,8 @@ export default function PostDetailScreen({ route, navigation }) {
         </TouchableOpacity>
         <Text style={S.title}>Post</Text>
         <TouchableOpacity onPress={() => Alert.alert('Options', '', [
-          ...(me?.id === post.userId ? [{ text:'Delete', style:'destructive', onPress:() => { deletePost(post.id); navigation.goBack(); } }] : []),
+          ...(me?.id === post.userId ? [{ text:'Delete', style:'destructive',
+            onPress: () => run(async () => { await deletePost(post.id); navigation.goBack(); }, 'Could not delete post') }] : []),
           { text: 'Report', onPress: () => Alert.alert('Reporting unavailable', 'In-app reporting is not enabled yet.') },
           { text: 'Cancel', style: 'cancel' }
         ])}>
@@ -99,13 +107,13 @@ export default function PostDetailScreen({ route, navigation }) {
             </View>
 
             <View style={S.bar}>
-              <TouchableOpacity style={S.barBtn} onPress={() => likePost(post.id)}>
+              <TouchableOpacity style={S.barBtn} onPress={() => run(() => likePost(post.id), 'Could not like')}>
                 <Ionicons name={liked ? 'heart' : 'heart-outline'} size={20} color={liked ? T.danger : T.subText} /><Text style={[S.barBtnT, liked && { color: T.danger }]}>Like</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={S.barBtn} onPress={() => sharePost(post.id)}>
+              <TouchableOpacity style={S.barBtn} onPress={() => run(() => sharePost(post.id), 'Could not share')}>
                 <Ionicons name="repeat-outline" size={20} color={T.subText} /><Text style={S.barBtnT}>Echo</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={S.barBtn} onPress={() => toggleBookmark(post.id)}>
+              <TouchableOpacity style={S.barBtn} onPress={() => run(() => toggleBookmark(post.id), 'Could not save')}>
                 <Ionicons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={20} color={bookmarked ? T.accent : T.subText} />
                 <Text style={S.barBtnT}>Save</Text>
               </TouchableOpacity>
@@ -142,6 +150,7 @@ export default function PostDetailScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
     </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 

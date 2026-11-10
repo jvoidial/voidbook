@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Modal, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Modal, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
@@ -49,6 +49,7 @@ export default function MessagesScreen({ route }) {
     const conv = (state.conversations || []).find(c => c.id === active);
     const other = usersById[conv?.withUserId];
     return (
+      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: T.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <SafeAreaView style={S.c} edges={['top']}>
         <View style={S.top}>
           <TouchableOpacity onPress={() => setActive(null)}>
@@ -80,6 +81,7 @@ export default function MessagesScreen({ route }) {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+      </KeyboardAvoidingView>
     );
   }
 

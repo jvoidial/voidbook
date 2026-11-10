@@ -12,7 +12,7 @@ const mapNotification = (n) => ({ ...n, userId: n.actor_id, type: n.kind, ts: n.
 
 const EMPTY = {
   users: [], profiles: {}, posts: [], follows: [], bookmarks: [], myLikes: [],
-  conversations: [], notifications: [],
+  conversations: [], notifications: [], loadError: null,
   // Present for the not-yet-migrated placeholder screens (Groups, Marketplace,
   // Friends) so they render an empty list instead of throwing.
   groups: [], listings: [], friends: { friends: [], requests: [], suggestions: [] },
@@ -83,6 +83,7 @@ export function AppProvider({ children }) {
 
         setState({
           ...EMPTY,
+          loadError: null,
           users: profileRows,
           profiles: Object.fromEntries(profileRows.map(p => [p.id, p])),
           posts: feed,
@@ -97,7 +98,10 @@ export function AppProvider({ children }) {
           notifications: (notifs.data || []).map(mapNotification)
         });
       } catch (e) {
+        // Do not swallow this: an empty feed that is really a failed load is
+        // indistinguishable from "no posts", so surface it to the UI.
         console.warn('[sqawk] initial load failed:', e?.message || e);
+        if (alive) setState(s => ({ ...s, loadError: e?.message || 'Could not load your feed.' }));
       } finally {
         if (alive) setReady(true);
       }
@@ -154,17 +158,25 @@ export function AppProvider({ children }) {
     },
 
     deletePost: async (id) => {
+      const removed = stateRef.current.posts.find(p => p.id === id);
       setState(s => ({ ...s, posts: s.posts.filter(p => p.id !== id) }));
       const { error } = await supabase.from('posts')
         .update({ deleted_at: new Date().toISOString() }).eq('id', id);
-      if (error) console.warn('[sqawk] deletePost:', error.message);
+      if (error) {
+        // Put the post back where it was so the UI does not lie about a failed
+        // delete; re-sort because posts are newest-first.
+        if (removed) setState(s => ({ ...s, posts: [removed, ...s.posts]
+          .sort((a, b) => new Date(b.created_at || b.ts) - new Date(a.created_at || a.ts)) }));
+        throw error;
+      }
     },
 
     editPost: async (id, content) => {
       const edited_at = new Date().toISOString();
+      const prev = stateRef.current.posts.find(p => p.id === id);
       patchPost(id, { content, edited_at });
       const { error } = await supabase.from('posts').update({ content, edited_at }).eq('id', id);
-      if (error) console.warn('[sqawk] editPost:', error.message);
+      if (error) { patchPost(id, { content: prev?.content, edited_at: prev?.edited_at }); throw error; }
     },
 
     // Optimistic toggle: like/unlike backed by the `likes` join table.
@@ -184,15 +196,16 @@ export function AppProvider({ children }) {
           myLikes: liked ? [id, ...s.myLikes] : s.myLikes.filter(x => x !== id),
           posts: s.posts.map(p => p.id === id ? { ...p, likes: Math.max(0, (p.likes || 0) + (liked ? 1 : -1)) } : p)
         }));
+        throw error;
       }
     },
 
     sharePost: async (id) => {
       const cur = stateRef.current.posts.find(p => p.id === id);
-      const shares = (cur?.shares || 0) + 1;
-      patchPost(id, { shares });
-      const { error } = await supabase.from('posts').update({ shares }).eq('id', id);
-      if (error) console.warn('[sqawk] sharePost:', error.message);
+      const prevShares = cur?.shares || 0;
+      patchPost(id, { shares: prevShares + 1 });
+      const { error } = await supabase.from('posts').update({ shares: prevShares + 1 }).eq('id', id);
+      if (error) { patchPost(id, { shares: prevShares }); throw error; }
     },
 
     addComment: async (id, text) => {

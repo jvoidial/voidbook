@@ -20,13 +20,20 @@ export default function PostCard({ post, user }) {
   const liked = (state.myLikes || []).includes(post.id);
   const isMine = me?.id === post.userId;
 
+  // These actions now reject on failure (AppContext rolls back and throws), so
+  // every fire-and-forget call needs a catch or it becomes an unhandled
+  // rejection. Surface the failure instead of letting the UI silently disagree
+  // with the server.
+  const run = (fn, title) => Promise.resolve().then(fn).catch(e =>
+    Alert.alert(title, e?.message || 'Please check your connection.'));
+
   const openMenu = () => Alert.alert('Post options', '', [
-    { text: 'Share', onPress: () => sharePost(post.id) },
+    { text: 'Share', onPress: () => run(() => sharePost(post.id), 'Could not share') },
     { text: isMine ? 'Delete' : 'Report', style: 'destructive',
       onPress: () => isMine
         ? Alert.alert('Delete post?', 'This cannot be undone.', [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => deletePost(post.id) }
+            { text: 'Delete', style: 'destructive', onPress: () => run(() => deletePost(post.id), 'Could not delete post') }
           ])
         : Alert.alert('Reporting unavailable', 'In-app reporting is not enabled yet.') },
     { text: 'Cancel', style: 'cancel' }
@@ -70,11 +77,11 @@ export default function PostCard({ post, user }) {
             <Ionicons name="chatbubble-outline" size={18} color={T.muted} />
             <Text style={S.bt}>{(post.comments||[]).length}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={S.b} onPress={() => sharePost(post.id)}>
+          <TouchableOpacity style={S.b} onPress={() => run(() => sharePost(post.id), 'Could not share')}>
             <Ionicons name="repeat-outline" size={20} color={T.muted} />
             <Text style={S.bt}>{post.shares || 0}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={S.b} onPress={() => likePost(post.id)}>
+          <TouchableOpacity style={S.b} onPress={() => run(() => likePost(post.id), 'Could not like')}>
             <Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? T.danger : T.muted} />
             <Text style={[S.bt, liked && { color: T.danger }]}>{post.likes || 0}</Text>
           </TouchableOpacity>
@@ -82,7 +89,7 @@ export default function PostCard({ post, user }) {
             <Ionicons name="stats-chart-outline" size={18} color={T.muted} />
             <Text style={S.bt}>{post.views || 0}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={S.b} onPress={() => toggleBookmark(post.id)}>
+          <TouchableOpacity style={S.b} onPress={() => run(() => toggleBookmark(post.id), 'Could not save')}>
             <Ionicons name={bookmarked ? "bookmark" : "bookmark-outline"} size={18} color={bookmarked ? T.link : T.muted} />
           </TouchableOpacity>
         </View>

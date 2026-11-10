@@ -14,14 +14,14 @@ import { theme as T } from '../theme';
 export default function ProfileScreen() {
   const nav = useNavigation();
   const { user, profile: myProfile, updateProfile, uploadAvatar, uploadCover } = useAuth();
-  const { state } = useApp();
+  const { state, ready } = useApp();
   const [edit, setEdit] = useState(false);
   const [premium, setPremium] = useState(false);
   const [tab, setTab]   = useState('posts');
   const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState({
-    name: user?.name || '', handle: user?.handle || '', bio: user?.bio || ''
-  });
+  // Always seeded from the live profile when the edit modal opens; start empty
+  // rather than reading the auth user, which has no name/handle/bio.
+  const [form, setForm] = useState({ name: '', handle: '', bio: '' });
 
   // AuthContext.profile is refreshed after any profile write; fall back to the
   // list row, then the auth metadata, so the header is never blank.
@@ -83,6 +83,9 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {!ready ? (
+        <ActivityIndicator color={T.accent} style={{ marginTop: 40 }} />
+      ) : (
       <FlatList
         data={tab === 'posts' ? mine : saved}
         keyExtractor={i => i.id}
@@ -148,7 +151,7 @@ export default function ProfileScreen() {
             </View>
           </View>
         }
-        renderItem={({ item }) => <PostCard post={item} user={usersById[item.userId] || user} />}
+        renderItem={({ item }) => <PostCard post={item} user={usersById[item.userId] || me} />}
         ListEmptyComponent={
           <View style={S.empty}>
             <Ionicons name="cube-outline" size={40} color={T.muted} />
@@ -156,6 +159,7 @@ export default function ProfileScreen() {
           </View>
         }
       />
+      )}
 
       <Modal visible={edit} transparent animationType="slide">
         <View style={S.modalBg}>
