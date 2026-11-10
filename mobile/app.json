@@ -11,17 +11,17 @@
       "package": "com.voidial.voidbook",
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/icon.jpg",
         "backgroundColor": "#000000"
       },
       "newArchEnabled": false
     },
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/icon.jpg",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icon.jpg",
     "assetBundlePatterns": [
       "**/*"
     ],
