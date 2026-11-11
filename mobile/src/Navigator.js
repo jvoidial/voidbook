@@ -27,6 +27,9 @@ import SavedScreen from './screens/SavedScreen';
 import AdminScreen from './screens/AdminScreen';
 import StartLiveScreen from './screens/StartLiveScreen';
 import LiveRoomScreen from './screens/LiveRoomScreen';
+// Used by the hidden "Notifications" tab below. The screen existed but was never
+// imported, so the tab rendered an undefined component and crashed on sign-in.
+import NotificationsScreen from './screens/NotificationsScreen';
 
 const Tab = createBottomTabNavigator();
 const RootStack = createNativeStackNavigator();
