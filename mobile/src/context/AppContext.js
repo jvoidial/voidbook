@@ -77,68 +77,73 @@ export function AppProvider({ children }) {
       : p)
   }));
 
+  // Shared loader used by both the initial load and pull-to-refresh. A refresh
+  // must re-run the same queries, not a subset, or a stale section would survive.
+  const loadAll = async (aliveRef) => {
+    const alive = () => !aliveRef || aliveRef.current;
+    try {
+      const [profiles, posts, follows, bookmarks, convos, notifs, comments, likes, reposts] = await Promise.all([
+        supabase.from('profiles').select('*').limit(500),
+        // Soft-deleted posts are hidden by the `posts_read_public` policy for
+        // other users, but the author's own policy lets them through, so
+        // filter explicitly or your deleted posts linger in your feed.
+        // Embed the author so a post's name never depends on the author being
+        // inside the `profiles` page window; without this, an author outside it
+        // renders as "Unknown". The `!author_id` hint is required: PostgREST
+        // also sees a posts↔profiles path through the likes/bookmarks/reposts
+        // join tables and refuses the embed as ambiguous without it.
+        supabase.from('posts').select('*, author:profiles!author_id(*)').is('deleted_at', null).order('created_at', { ascending: false }).limit(100),
+        supabase.from('follows').select('*'),
+        supabase.from('bookmarks').select('*').eq('user_id', me),
+        supabase.from('conversations').select('*, messages(*)').or(`user_a.eq.${me},user_b.eq.${me}`),
+        supabase.from('notifications').select('*').eq('user_id', me).order('created_at', { ascending: false }).limit(50),
+        supabase.from('comments').select('*').order('created_at', { ascending: true }).limit(1000),
+        supabase.from('likes').select('*'),
+        supabase.from('reposts').select('*')
+      ]);
+      if (!alive()) return;
+
+      // A rejected query yields `{ data: null, error }` rather than throwing, so
+      // without this the failure is invisible: profiles come back empty (every
+      // author renders as "Unknown") and Messages looks like it simply has no
+      // conversations. Surface the first failure instead of guessing later.
+      const failed = [['profiles', profiles], ['posts', posts], ['follows', follows],
+        ['bookmarks', bookmarks], ['conversations', convos], ['notifications', notifs],
+        ['comments', comments], ['likes', likes], ['reposts', reposts]]
+        .find(([, r]) => r?.error);
+      if (failed) console.warn(`[sqawk] ${failed[0]} load failed:`, failed[1].error.message);
+
+      const profileRows = profiles.data || [];
+      const { posts: feed, myLikes, myReposts } = normalizePosts(posts.data || [], comments.data || [], likes.data || [], reposts.data || [], me);
+
+      setState({
+        ...EMPTY,
+        loadError: null,
+        users: profileRows,
+        profiles: Object.fromEntries(profileRows.map(p => [p.id, p])),
+        posts: feed,
+        follows: follows.data || [],
+        bookmarks: (bookmarks.data || []).map(b => b.post_id),
+        myLikes,
+        myReposts,
+        conversations: (convos.data || []).map(c => mapConversation(c, me)),
+        notifications: (notifs.data || []).map(mapNotification)
+      });
+    } catch (e) {
+      // Do not swallow this: an empty feed that is really a failed load is
+      // indistinguishable from "no posts", so surface it to the UI.
+      console.warn('[sqawk] load failed:', e?.message || e);
+      if (alive()) setState(s => ({ ...s, loadError: e?.message || 'Could not load your feed.' }));
+    } finally {
+      if (alive()) setReady(true);
+    }
+  };
+
   useEffect(() => {
     if (!me) { setState(EMPTY); setReady(true); return; }
-    let alive = true;
-    (async () => {
-      try {
-        const [profiles, posts, follows, bookmarks, convos, notifs, comments, likes, reposts] = await Promise.all([
-          supabase.from('profiles').select('*').limit(500),
-          // Soft-deleted posts are hidden by the `posts_read_public` policy for
-          // other users, but the author's own policy lets them through, so
-          // filter explicitly or your deleted posts linger in your feed.
-          // Embed the author so a post's name never depends on the author being
-          // inside the `profiles` page window; without this, an author outside it
-          // renders as "Unknown". The `!author_id` hint is required: PostgREST
-          // also sees a posts↔profiles path through the likes/bookmarks/reposts
-          // join tables and refuses the embed as ambiguous without it.
-          supabase.from('posts').select('*, author:profiles!author_id(*)').is('deleted_at', null).order('created_at', { ascending: false }).limit(100),
-          supabase.from('follows').select('*'),
-          supabase.from('bookmarks').select('*').eq('user_id', me),
-          supabase.from('conversations').select('*, messages(*)').or(`user_a.eq.${me},user_b.eq.${me}`),
-          supabase.from('notifications').select('*').eq('user_id', me).order('created_at', { ascending: false }).limit(50),
-          supabase.from('comments').select('*').order('created_at', { ascending: true }).limit(1000),
-          supabase.from('likes').select('*'),
-          supabase.from('reposts').select('*')
-        ]);
-        if (!alive) return;
-
-        // A rejected query yields `{ data: null, error }` rather than throwing, so
-        // without this the failure is invisible: profiles come back empty (every
-        // author renders as "Unknown") and Messages looks like it simply has no
-        // conversations. Surface the first failure instead of guessing later.
-        const failed = [['profiles', profiles], ['posts', posts], ['follows', follows],
-          ['bookmarks', bookmarks], ['conversations', convos], ['notifications', notifs],
-          ['comments', comments], ['likes', likes], ['reposts', reposts]]
-          .find(([, r]) => r?.error);
-        if (failed) console.warn(`[sqawk] ${failed[0]} load failed:`, failed[1].error.message);
-
-        const profileRows = profiles.data || [];
-        const { posts: feed, myLikes, myReposts } = normalizePosts(posts.data || [], comments.data || [], likes.data || [], reposts.data || [], me);
-
-        setState({
-          ...EMPTY,
-          loadError: null,
-          users: profileRows,
-          profiles: Object.fromEntries(profileRows.map(p => [p.id, p])),
-          posts: feed,
-          follows: follows.data || [],
-          bookmarks: (bookmarks.data || []).map(b => b.post_id),
-          myLikes,
-          myReposts,
-          conversations: (convos.data || []).map(c => mapConversation(c, me)),
-          notifications: (notifs.data || []).map(mapNotification)
-        });
-      } catch (e) {
-        // Do not swallow this: an empty feed that is really a failed load is
-        // indistinguishable from "no posts", so surface it to the UI.
-        console.warn('[sqawk] initial load failed:', e?.message || e);
-        if (alive) setState(s => ({ ...s, loadError: e?.message || 'Could not load your feed.' }));
-      } finally {
-        if (alive) setReady(true);
-      }
-    })();
-    return () => { alive = false; };
+    const ref = { current: true };
+    loadAll(ref);
+    return () => { ref.current = false; };
   }, [me]);
 
   useEffect(() => {
@@ -202,6 +207,10 @@ export function AppProvider({ children }) {
 
   const api = {
     state, ready, ingestComment,
+
+    // Pull-to-refresh: re-run the full load. `ready` stays true throughout so the
+    // list keeps showing the old rows until the new ones arrive (no blank flash).
+    refresh: () => loadAll(null),
 
     addPost: async (content, mediaUrl, mediaType) => {
       // Select the author alongside the row so the new post renders with a name

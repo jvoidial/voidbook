@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Image } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
@@ -76,7 +76,9 @@ function MainTabs() {
       <Tab.Screen name="Search" component={SearchScreen} />
       <Tab.Screen name="Local" component={LocalScreen} />
       <Tab.Screen name="Marketplace" component={MarketplaceScreen} />
-      <Tab.Screen name="Messages" component={MessagesScreen} options={{ tabBarBadge: unreadMsgs > 0 ? unreadMsgs : undefined, tabBarBadgeStyle: { backgroundColor: T.accent, color: '#FFF' } }} />
+      {/* The badge uses the link blue (and white text) so it stays legible: a
+          white-on-white badge from `T.accent` is invisible. */}
+      <Tab.Screen name="Messages" component={MessagesScreen} options={{ tabBarBadge: unreadMsgs > 0 ? unreadMsgs : undefined, tabBarBadgeStyle: { backgroundColor: T.link, color: '#FFFFFF' } }} />
       
       {/* Hidden Tabs (Accessible via navigation, but not shown on bottom bar) */}
       <Tab.Screen name="Notifications" component={NotificationsScreen} options={{ tabBarButton: () => null }} />
@@ -105,7 +107,8 @@ export default function Navigator() {
   const { user, ready, recovering } = useAuth();
   if (!ready) {
     return (
-      <View style={{ flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center', gap: 20 }}>
+        <Image source={require('../assets/logo.png')} style={{ width: 140, aspectRatio: 372 / 309 }} resizeMode="contain" accessibilityLabel="sqawk" />
         <ActivityIndicator color={T.accent} size="large" />
       </View>
     );

@@ -86,7 +86,7 @@ export default function SettingsScreen() {
 
         <View style={S.section}>
           <Text style={S.secTitle}>About</Text>
-          <Row icon="information-circle-outline" label="sqawk v1.0.0"
+          <Row icon="information-circle-outline" label="sqawk v1.1.0"
             onPress={() => Alert.alert('sqawk', 'A black and white social layer.')} />
         </View>
 

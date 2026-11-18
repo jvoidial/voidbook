@@ -10,7 +10,12 @@ export default function HashtagScreen({ route, navigation }) {
   const { tag } = route.params;
   const { state } = useApp();
   const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
-  const posts = (state.posts || []).filter(p => (p.content || '').toLowerCase().includes(tag.toLowerCase()));
+
+  // Match the tag as a whole token, not a substring: searching "#new" must not
+  // also return posts tagged "#news". The word boundary is `\b` after the tag.
+  const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`${escaped}\\b`, 'i');
+  const posts = (state.posts || []).filter(p => re.test(p.content || ''));
 
   return (
     <SafeAreaView style={S.c} edges={['top']}>

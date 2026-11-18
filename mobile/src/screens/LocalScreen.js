@@ -9,6 +9,7 @@ import { useStripe } from '@stripe/stripe-react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { payForProduct, confirmProduct } from '../lib/payments';
+import { stripeEnabled } from '../lib/stripe';
 import { theme as T } from '../theme';
 
 const TABS = ['Businesses', 'Communities'];
@@ -200,7 +201,7 @@ export default function LocalScreen() {
             {tab === 'Businesses' && (
               <View style={S.feeRow}>
                 <Ionicons name="pricetag-outline" size={16} color={T.link} />
-                <Text style={S.feeT}>$1 listing fee (simulated)</Text>
+                <Text style={S.feeT}>{stripeEnabled ? '$1 listing fee' : '$1 listing fee (payments not configured)'}</Text>
               </View>
             )}
 

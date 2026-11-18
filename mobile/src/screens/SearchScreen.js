@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import { useApp } from '../context/AppContext';
 import PostCard from '../components/PostCard';
 import BlueCheck from '../components/BlueCheck';
 import { theme as T } from '../theme';
@@ -14,6 +15,7 @@ const clean = (s) => s.replace(/[%,()\\]/g, ' ').trim();
 
 export default function SearchScreen() {
   const nav = useNavigation();
+  const { state } = useApp();
   const [q, setQ] = useState('');
   const [tab, setTab] = useState('people');
   const [people, setPeople] = useState([]);
@@ -61,6 +63,20 @@ export default function SearchScreen() {
 
   const term = clean(q);
 
+  // Trending tags, derived from the posts already in state (no extra query).
+  // Gives the empty search state something to do and a way into the hashtag feed
+  // even when nobody has tapped a tag yet.
+  const trending = useMemo(() => {
+    const counts = {};
+    for (const p of state.posts || []) {
+      for (const m of (p.content || '').matchAll(/#(\w+)/g)) {
+        const tag = `#${m[1]}`;
+        counts[tag] = (counts[tag] || 0) + 1;
+      }
+    }
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([tag, n]) => ({ tag, n }));
+  }, [state.posts]);
+
   const header = (
     <View style={S.top}>
       <View style={S.searchBox}>
@@ -92,10 +108,23 @@ export default function SearchScreen() {
     return (
       <SafeAreaView style={S.c} edges={['top']}>
         {header}
-        <View style={S.center}>
-          <Ionicons name="search-outline" size={48} color={T.muted} />
-          <Text style={S.emptyT}>Search for people or posts</Text>
-        </View>
+        {trending.length > 0 ? (
+          <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+            <Text style={S.trendTitle}>Trending on sqawk</Text>
+            {trending.map(t => (
+              <TouchableOpacity key={t.tag} style={S.trendRow}
+                onPress={() => nav.push('Hashtag', { tag: t.tag })}>
+                <Text style={S.trendTag}>{t.tag}</Text>
+                <Text style={S.trendCount}>{t.n} {t.n === 1 ? 'post' : 'posts'}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : (
+          <View style={S.center}>
+            <Ionicons name="search-outline" size={48} color={T.muted} />
+            <Text style={S.emptyT}>Search for people or posts</Text>
+          </View>
+        )}
       </SafeAreaView>
     );
   }
@@ -180,6 +209,10 @@ const S = StyleSheet.create({
   center: { flex:1, alignItems:'center', justifyContent:'center', gap:12, paddingBottom:80 },
   emptyT: { color:T.muted, fontSize:15 },
   empty: { color:T.muted, textAlign:'center', marginTop:40, paddingHorizontal:24 },
+  trendTitle: { color:T.text, fontSize:18, fontWeight:'800', marginBottom:12 },
+  trendRow: { paddingVertical:12, borderBottomWidth:1, borderBottomColor:T.divider },
+  trendTag: { color:T.text, fontSize:15, fontWeight:'700' },
+  trendCount: { color:T.muted, fontSize:13, marginTop:2 },
   userRow: { flexDirection:'row', alignItems:'center', padding:16, borderBottomWidth:1, borderBottomColor:T.border },
   av: { width:44, height:44, borderRadius:22, backgroundColor:T.surface,
         alignItems:'center', justifyContent:'center', marginRight:12,

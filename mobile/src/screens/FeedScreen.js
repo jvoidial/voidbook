@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, Modal, TextInput, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -11,7 +11,7 @@ import { theme as T } from '../theme';
 
 export default function FeedScreen() {
   const nav = useNavigation();
-  const { state, ready, addPost } = useApp();
+  const { state, ready, addPost, refresh } = useApp();
   // `user` is the Supabase auth user (id/email only); display fields live on
   // the profile row, so read the name/avatar from there.
   const { user, profile } = useAuth();
@@ -21,7 +21,14 @@ export default function FeedScreen() {
   const [text, setText] = useState('');
   const [asset, setAsset] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const usersById = Object.fromEntries((state.users || []).map(u => [u.id, u]));
+  const unreadNotifs = (state.notifications || []).filter(n => !n.read).length;
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try { await refresh(); } finally { setRefreshing(false); }
+  };
 
   const closeModal = () => { setModal(false); setText(''); setAsset(null); };
 
@@ -56,9 +63,15 @@ export default function FeedScreen() {
           </View>
         </TouchableOpacity>
 
-        <Image source={require('../../assets/icon.jpg')} style={S.logo} resizeMode="contain" accessibilityLabel="sqawk" />
+        <Image source={require('../../assets/logo.png')} style={S.logo} resizeMode="contain" accessibilityLabel="sqawk" />
 
         <View style={S.topActions}>
+          {/* Notifications is a hidden tab with no other entry point; without a
+              bell here nothing in the app can ever reach the screen. */}
+          <TouchableOpacity onPress={() => nav.navigate('Notifications')} hitSlop={10}>
+            <Ionicons name="notifications-outline" size={24} color={T.text} />
+            {unreadNotifs > 0 && <View style={S.bellDot} />}
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => nav.navigate('StartLive')} hitSlop={10}>
             <Ionicons name="radio-outline" size={24} color={T.text} />
           </TouchableOpacity>
@@ -81,6 +94,7 @@ export default function FeedScreen() {
           data={state.posts}
           keyExtractor={i => i.id}
           renderItem={({ item }) => <PostCard post={item} user={usersById[item.userId]} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={T.accent} />}
           ListEmptyComponent={
             <View style={S.empty}>
               <Ionicons name="chatbubbles-outline" size={40} color={T.muted} />
@@ -149,7 +163,8 @@ const S = StyleSheet.create({
   c: { flex: 1, backgroundColor: T.bg },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: T.divider },
   topActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
-  logo: { width: 32, height: 32, borderRadius: 8 },
+  bellDot: { position: 'absolute', top: -2, right: -2, width: 9, height: 9, borderRadius: 5, backgroundColor: T.link, borderWidth: 1.5, borderColor: T.bg },
+  logo: { width: 34, aspectRatio: 372 / 309 },
   av: { width: 32, height: 32, borderRadius: 16, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avImg: { width: '100%', height: '100%' },
   avT: { color: T.text, fontWeight: 'bold', fontSize: 14 },
