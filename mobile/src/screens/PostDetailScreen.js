@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
+import RichText from '../components/RichText';
 import { theme as T } from '../theme';
 
 export default function PostDetailScreen({ route, navigation }) {
@@ -54,10 +55,6 @@ export default function PostDetailScreen({ route, navigation }) {
     || (post.userId === me?.id ? { name: myName, handle: '' } : { name: 'Unknown', handle: '@unknown' });
   const bookmarked = (state.bookmarks || []).includes(post.id);
   const liked = (state.myLikes || []).includes(post.id);
-  const renderContent = (c) => (c || '').split(/(\s+)/).map((part, i) => {
-    if (part.startsWith('#') || part.startsWith('@')) return <Text key={i} style={{ color: T.link, fontWeight: '600' }}>{part}</Text>;
-    return part;
-  });
 
   const submit = async () => {
     const body = text.trim();
@@ -97,7 +94,7 @@ export default function PostDetailScreen({ route, navigation }) {
                 <Text style={S.hd}>{author.handle}</Text>
               </View>
             </View>
-            <Text style={S.bigContent}>{renderContent(post.content)}</Text>
+            <RichText text={post.content} style={S.bigContent} linkStyle={{ color: T.link, fontWeight: '600' }} />
             <Text style={S.time}>{new Date(post.created_at || post.ts).toLocaleString()}</Text>
 
             <View style={S.statsRow}>
@@ -133,7 +130,7 @@ export default function PostDetailScreen({ route, navigation }) {
               <View style={S.cAv}><Text style={S.cAvT}>{u.name[0]}</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={S.cName}>{u.name} <Text style={S.cHandle}>{u.handle}</Text></Text>
-                <Text style={S.cText}>{item.text}</Text>
+                <RichText text={item.text} style={S.cText} />
               </View>
             </View>
           );

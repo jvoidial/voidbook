@@ -76,7 +76,9 @@ function MainTabs() {
       <Tab.Screen name="Search" component={SearchScreen} />
       <Tab.Screen name="Local" component={LocalScreen} />
       <Tab.Screen name="Marketplace" component={MarketplaceScreen} />
-      <Tab.Screen name="Messages" component={MessagesScreen} options={{ tabBarBadge: unreadMsgs > 0 ? unreadMsgs : undefined, tabBarBadgeStyle: { backgroundColor: T.accent, color: '#FFF' } }} />
+      {/* The badge uses the link blue (and white text) so it stays legible: a
+          white-on-white badge from `T.accent` is invisible. */}
+      <Tab.Screen name="Messages" component={MessagesScreen} options={{ tabBarBadge: unreadMsgs > 0 ? unreadMsgs : undefined, tabBarBadgeStyle: { backgroundColor: T.link, color: '#FFFFFF' } }} />
       
       {/* Hidden Tabs (Accessible via navigation, but not shown on bottom bar) */}
       <Tab.Screen name="Notifications" component={NotificationsScreen} options={{ tabBarButton: () => null }} />

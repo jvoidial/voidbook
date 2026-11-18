@@ -129,6 +129,13 @@ There is exactly one path to `is_premium = true`, and it runs on the server:
 the RPC it replaced. `premium_purchases.payment_intent_id` is the primary key, so
 a replayed confirm is a no-op rather than a second grant.
 
+Premium and the blue checkmark are the same purchase. `BlueCheck` renders off
+`is_verified`/`verified`, not `is_premium`, so `grant_premium_entitlement` must
+set **all three** flags (migration `011`). When it only set `is_premium`, a
+paying user got Premium with no badge anywhere — the modal sells the badge, and
+`ProfileScreen`'s "Get Verified" button opens the same modal, so this was the
+whole visible product of the purchase. Never grant one without the other.
+
 This closed a real hole: migration 009 shipped `activate_premium()`, which
 granted Premium to any signed-in caller with no payment at all. Migration 010
 drops it. Do not reintroduce a client-callable entitlement grant.

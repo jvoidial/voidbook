@@ -1,10 +1,11 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import BlueCheck from './BlueCheck';
+import RichText from './RichText';
 import { theme as T } from '../theme';
 
 export default function PostCard({ post, user }) {
@@ -15,6 +16,9 @@ export default function PostCard({ post, user }) {
   // post itself so a name is shown even if the profile list is incomplete.
   const author = user || post.author || null;
   const displayName = author?.name || 'Unknown';
+  // Intrinsic image size, so a post image renders at its natural aspect ratio
+  // instead of being cropped into a fixed box. Defaults to 4:3 until it loads.
+  const [ratio, setRatio] = useState(4 / 3);
   const handle = (author?.handle || '').replace('@', '');
   const mins = Math.floor((Date.now() - new Date(post.created_at || post.ts).getTime()) / 60000);
   const timeLabel = mins < 1 ? 'now' : mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins/60)}h` : `${Math.floor(mins/1440)}d`;
@@ -29,6 +33,13 @@ export default function PostCard({ post, user }) {
   const run = (fn, title) => Promise.resolve().then(fn).catch(e =>
     Alert.alert(title, e?.message || 'Please check your connection.'));
 
+  // A real OS share sheet — distinct from Echo (a repost into the timeline). The
+  // old bar showed a `post.views` counter that always rendered 0 (there is no
+  // `views` column), which is fake data; this replaces it with a working action.
+  const shareExternally = () => Share.share({
+    message: `${displayName} on sqawk: ${post.content || ''}`.trim(),
+  }).catch(() => {});
+
   const openMenu = () => Alert.alert('Post options', '', [
     { text: 'Share', onPress: () => run(() => sharePost(post.id), 'Could not share') },
     { text: isMine ? 'Delete' : 'Report', style: 'destructive',
@@ -40,11 +51,6 @@ export default function PostCard({ post, user }) {
         : Alert.alert('Reporting unavailable', 'In-app reporting is not enabled yet.') },
     { text: 'Cancel', style: 'cancel' }
   ]);
-
-  const renderContent = (c) => (c || '').split(/(\s+)/).map((part, i) => {
-    if (part.startsWith('#') || part.startsWith('@')) return <Text key={i} style={{ color: T.link }}>{part}</Text>;
-    return part;
-  });
 
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={() => nav.push('PostDetail', { postId: post.id })} style={S.card}>
@@ -68,10 +74,18 @@ export default function PostCard({ post, user }) {
           </TouchableOpacity>
         </View>
 
-        {!!post.content && <Text style={S.ct}>{renderContent(post.content)}</Text>}
+        {!!post.content && <RichText text={post.content} style={S.ct} />}
 
         {post.media_url && post.media_type === 'image' && (
-          <Image source={{ uri: post.media_url }} style={S.media} resizeMode="cover" />
+          <Image
+            source={{ uri: post.media_url }}
+            style={[S.media, { aspectRatio: ratio }]}
+            resizeMode="cover"
+            onLoad={e => {
+              const { width, height } = e.nativeEvent.source || {};
+              if (width && height) setRatio(width / height);
+            }}
+          />
         )}
 
         <View style={S.bar}>
@@ -87,9 +101,8 @@ export default function PostCard({ post, user }) {
             <Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? T.danger : T.muted} />
             <Text style={[S.bt, liked && { color: T.danger }]}>{post.likes || 0}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={S.b} onPress={() => nav.push('PostDetail', { postId: post.id })}>
-            <Ionicons name="stats-chart-outline" size={18} color={T.muted} />
-            <Text style={S.bt}>{post.views || 0}</Text>
+          <TouchableOpacity style={S.b} onPress={shareExternally}>
+            <Ionicons name="share-outline" size={18} color={T.muted} />
           </TouchableOpacity>
           <TouchableOpacity style={S.b} onPress={() => run(() => toggleBookmark(post.id), 'Could not save')}>
             <Ionicons name={bookmarked ? "bookmark" : "bookmark-outline"} size={18} color={bookmarked ? T.link : T.muted} />
@@ -110,7 +123,7 @@ const S = StyleSheet.create({
   nm: { color: T.text, fontWeight: '700', fontSize: 15 },
   hd: { color: T.muted, fontSize: 15 },
   ct: { color: T.text, fontSize: 15, lineHeight: 20, marginTop: 2, marginBottom: 8 },
-  media: { width: '100%', height: 200, borderRadius: 16, marginTop: 4, marginBottom: 8, borderWidth: 1, borderColor: T.border },
+  media: { width: '100%', borderRadius: 16, marginTop: 4, marginBottom: 8, borderWidth: 1, borderColor: T.border, backgroundColor: T.surface },
   bar: { flexDirection: 'row', justifyContent: 'space-between', paddingRight: 32, marginTop: 4 },
   b: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   bt: { color: T.muted, fontSize: 13 }
