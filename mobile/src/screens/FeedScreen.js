@@ -63,7 +63,7 @@ export default function FeedScreen() {
           </View>
         </TouchableOpacity>
 
-        <Image source={require('../../assets/icon.jpg')} style={S.logo} resizeMode="contain" accessibilityLabel="sqawk" />
+        <Image source={require('../../assets/logo.png')} style={S.logo} resizeMode="contain" accessibilityLabel="sqawk" />
 
         <View style={S.topActions}>
           {/* Notifications is a hidden tab with no other entry point; without a
@@ -164,7 +164,7 @@ const S = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: T.divider },
   topActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   bellDot: { position: 'absolute', top: -2, right: -2, width: 9, height: 9, borderRadius: 5, backgroundColor: T.link, borderWidth: 1.5, borderColor: T.bg },
-  logo: { width: 32, height: 32, borderRadius: 8 },
+  logo: { width: 34, aspectRatio: 372 / 309 },
   av: { width: 32, height: 32, borderRadius: 16, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avImg: { width: '100%', height: '100%' },
   avT: { color: T.text, fontWeight: 'bold', fontSize: 14 },

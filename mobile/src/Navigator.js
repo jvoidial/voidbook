@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Image } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
@@ -107,7 +107,8 @@ export default function Navigator() {
   const { user, ready, recovering } = useAuth();
   if (!ready) {
     return (
-      <View style={{ flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center', gap: 20 }}>
+        <Image source={require('../assets/logo.png')} style={{ width: 140, aspectRatio: 372 / 309 }} resizeMode="contain" accessibilityLabel="sqawk" />
         <ActivityIndicator color={T.accent} size="large" />
       </View>
     );

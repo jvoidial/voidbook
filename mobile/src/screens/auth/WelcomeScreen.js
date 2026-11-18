@@ -1,16 +1,13 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { theme as T } from '../../theme';
 
 export default function WelcomeScreen({ navigation }) {
   return (
     <SafeAreaView style={S.c}>
       <View style={S.top}>
-        <View style={S.logoBox}>
-          <Ionicons name="cube" size={56} color={T.accent} />
-        </View>
+        <Image source={require('../../../assets/logo.png')} style={S.logo} resizeMode="contain" accessibilityLabel="sqawk" />
         <Text style={S.brand}>sqawk</Text>
         <Text style={S.tag}>The blackest social layer.</Text>
       </View>
@@ -32,9 +29,7 @@ export default function WelcomeScreen({ navigation }) {
 const S = StyleSheet.create({
   c: { flex: 1, backgroundColor: T.bg, padding: 24, justifyContent: 'space-between' },
   top: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  logoBox: { width: 112, height: 112, borderRadius: 32, borderWidth: 2, borderColor: T.accent,
-             alignItems: 'center', justifyContent: 'center', marginBottom: 24,
-             backgroundColor: T.surface },
+  logo: { width: 168, aspectRatio: 372 / 309, marginBottom: 20 },
   brand: { color: T.text, fontSize: 40, fontWeight: '900', letterSpacing: -1 },
   tag: { color: T.muted, marginTop: 8, fontSize: 14 },
   actions: { gap: 12, marginBottom: 24 },
